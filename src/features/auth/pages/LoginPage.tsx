@@ -5,7 +5,11 @@ import { useAuth } from "../../../shared/auth/authStore";
 import { login } from "../api/authApi";
 
 type LocationState = {
-  returnTo?: string;
+  returnTo?: string | {
+    pathname?: string;
+    search?: string;
+    hash?: string;
+  };
 };
 
 export function LoginPage() {
@@ -13,7 +17,7 @@ export function LoginPage() {
   const location = useLocation();
   const { setAuthSession } = useAuth();
 
-  const returnTo = (location.state as LocationState | null)?.returnTo ?? "/products";
+  const returnTo = resolveReturnTo(location.state);
 
   const [email, setEmail] = useState("admin@example.com");
   const [password, setPassword] = useState("Password123");
@@ -39,6 +43,20 @@ export function LoginPage() {
       setIsSubmitting(false);
     }
   }
+
+  function resolveReturnTo(state: unknown): string {
+  const returnTo = (state as LocationState | null)?.returnTo;
+
+  if (typeof returnTo === "string") {
+    return returnTo;
+  }
+
+  if (returnTo && typeof returnTo === "object" && typeof returnTo.pathname === "string") {
+    return `${returnTo.pathname}${returnTo.search ?? ""}${returnTo.hash ?? ""}`;
+  }
+
+  return "/products";
+}
 
   return (
     <section className="mx-auto max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-sm">

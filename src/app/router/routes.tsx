@@ -8,6 +8,10 @@ import { AdminLayout } from "../layout/AdminLayout";
 import { AppLayout } from "../layout/AppLayout";
 import { RequireAuth } from "./RequireAuth";
 import { RequireRole } from "./RequireRole";
+import { CheckoutPage } from "../../features/ordering/pages/CheckoutPage";
+import { OrderDetailPage } from "../../features/ordering/pages/OrderDetailPage";
+import { OrdersPage } from "../../features/ordering/pages/OrdersPage";
+import { PaymentDetailPage } from "../../features/payment/pages/PaymentDetailPage";
 import { RoutePlaceholder } from "./RoutePlaceholder";
 
 export const router = createBrowserRouter([
@@ -32,15 +36,15 @@ export const router = createBrowserRouter([
         element: <RequireAuth />,
         children: [
           { path: "cart", element: <CartPage /> },
-          { path: "checkout", element: <RoutePlaceholder title="Checkout" /> },
-          { path: "orders", element: <RoutePlaceholder title="My orders" /> },
+          { path: "checkout", element: <CheckoutPage /> },
+          { path: "orders", element: <OrdersPage /> },
           {
             path: "orders/:orderId",
-            element: <RoutePlaceholder title="Order detail" />,
+            element: <OrderDetailPage />,
           },
           {
             path: "payments/:paymentId",
-            element: <RoutePlaceholder title="Payment detail" />,
+            element: <PaymentDetailPage />,
           },
         ],
       },
