@@ -1,4 +1,7 @@
 import { createBrowserRouter } from "react-router-dom";
+import { LoginPage } from "../../features/auth/pages/LoginPage";
+import { RegisterPage } from "../../features/auth/pages/RegisterPage";
+import { CartPage } from "../../features/cart/pages/CartPage";
 import { ProductDetailPage } from "../../features/catalog/pages/ProductDetailPage";
 import { ProductListPage } from "../../features/catalog/pages/ProductListPage";
 import { AdminLayout } from "../layout/AdminLayout";
@@ -16,8 +19,8 @@ export const router = createBrowserRouter([
         index: true,
         element: <ProductListPage />,
       },
-      { path: "login", element: <RoutePlaceholder title="Login" /> },
-      { path: "register", element: <RoutePlaceholder title="Register" /> },
+      { path: "login", element: <LoginPage /> },
+      { path: "register", element: <RegisterPage /> },
       { path: "products", element: <ProductListPage /> },
       {
         path: "products/:productId",
@@ -28,7 +31,7 @@ export const router = createBrowserRouter([
       {
         element: <RequireAuth />,
         children: [
-          { path: "cart", element: <RoutePlaceholder title="Cart" /> },
+          { path: "cart", element: <CartPage /> },
           { path: "checkout", element: <RoutePlaceholder title="Checkout" /> },
           { path: "orders", element: <RoutePlaceholder title="My orders" /> },
           {

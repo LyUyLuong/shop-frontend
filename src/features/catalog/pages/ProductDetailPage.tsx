@@ -1,6 +1,7 @@
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { isApiError } from "../../../shared/api/apiError";
 import { useAuth } from "../../../shared/auth/authStore";
+import { useAddCartItem } from "../../cart/api/cartQueries";
 import { useProduct } from "../api/catalogQueries";
 
 export function ProductDetailPage() {
@@ -9,6 +10,7 @@ export function ProductDetailPage() {
   const { isAuthenticated } = useAuth();
 
   const productQuery = useProduct(productId);
+  const addCartItem = useAddCartItem();
 
   if (productQuery.isLoading) {
     return (
@@ -43,7 +45,7 @@ export function ProductDetailPage() {
 
   const product = productQuery.data;
 
-  function handleAddToCart() {
+  async function handleAddToCart() {
     if (!isAuthenticated) {
       navigate("/login", {
         state: { returnTo: `/products/${product.id}` },
@@ -51,7 +53,16 @@ export function ProductDetailPage() {
       return;
     }
 
-    navigate("/cart");
+    try {
+      await addCartItem.mutateAsync({
+        productId: product.id,
+        quantity: 1,
+      });
+
+      navigate("/cart");
+    } catch {
+      // Mutation error is rendered below.
+    }
   }
 
   return (
@@ -101,13 +112,25 @@ export function ProductDetailPage() {
             </span>
           </div>
 
+          {addCartItem.error && (
+            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {isApiError(addCartItem.error)
+                ? addCartItem.error.userMessage
+                : "Could not add product to cart."}
+            </div>
+          )}
+
           <button
             className="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300"
             type="button"
-            disabled={product.stockQuantity <= 0}
+            disabled={product.stockQuantity <= 0 || addCartItem.isPending}
             onClick={handleAddToCart}
           >
-            {product.stockQuantity > 0 ? "Add to cart" : "Out of stock"}
+            {product.stockQuantity <= 0
+              ? "Out of stock"
+              : addCartItem.isPending
+                ? "Adding..."
+                : "Add to cart"}
           </button>
 
           {!isAuthenticated && (
