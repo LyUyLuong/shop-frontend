@@ -3,6 +3,7 @@ import { isApiError } from "../../../shared/api/apiError";
 import { useAuth } from "../../../shared/auth/authStore";
 import { useAddCartItem } from "../../cart/api/cartQueries";
 import { useProduct } from "../api/catalogQueries";
+import { productImageSrc } from "../utils/productImage";
 
 export function ProductDetailPage() {
   const { productId } = useParams();
@@ -44,6 +45,7 @@ export function ProductDetailPage() {
   }
 
   const product = productQuery.data;
+  const imageSrc = productImageSrc(product);
 
   async function handleAddToCart() {
     if (!isAuthenticated) {
@@ -73,11 +75,11 @@ export function ProductDetailPage() {
 
       <div className="grid gap-6 rounded-lg border border-slate-200 bg-white p-6 shadow-sm lg:grid-cols-[minmax(0,520px)_minmax(0,1fr)]">
         <div className="aspect-[4/3] overflow-hidden rounded-lg bg-slate-100">
-          {product.imageUrl ? (
+          {imageSrc ? (
             <img
               alt={product.name}
               className="h-full w-full object-cover"
-              src={product.imageUrl}
+              src={imageSrc}
             />
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-slate-500">

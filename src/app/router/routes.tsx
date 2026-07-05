@@ -12,6 +12,9 @@ import { CheckoutPage } from "../../features/ordering/pages/CheckoutPage";
 import { OrderDetailPage } from "../../features/ordering/pages/OrderDetailPage";
 import { OrdersPage } from "../../features/ordering/pages/OrdersPage";
 import { PaymentDetailPage } from "../../features/payment/pages/PaymentDetailPage";
+import { AdminProductFormPage } from "../../features/catalog/pages/AdminProductFormPage";
+import { AdminProductListPage } from "../../features/catalog/pages/AdminProductListPage";
+
 import { RoutePlaceholder } from "./RoutePlaceholder";
 
 export const router = createBrowserRouter([
@@ -59,15 +62,15 @@ export const router = createBrowserRouter([
               { index: true, element: <RoutePlaceholder title="Admin" /> },
               {
                 path: "products",
-                element: <RoutePlaceholder title="Admin products" />,
+                element: <AdminProductListPage />,
               },
               {
                 path: "products/new",
-                element: <RoutePlaceholder title="Create product" />,
+                element: <AdminProductFormPage />,
               },
               {
                 path: "products/:productId",
-                element: <RoutePlaceholder title="Edit product" />,
+                element: <AdminProductFormPage />,
               },
               {
                 path: "orders",

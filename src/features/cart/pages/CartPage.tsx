@@ -9,6 +9,7 @@ import {
   catalogQueryKeys,
 } from "../../catalog/api/catalogQueries";
 import type { ProductResponse } from "../../catalog/api/catalogTypes";
+import { productImageSrc } from "../../catalog/utils/productImage";
 import {
   useCart,
   useRemoveCartItem,
@@ -118,6 +119,7 @@ export function CartPage() {
 
         {cart.items.map((item) => {
           const product = productsById.get(item.productId);
+          const imageSrc = product ? productImageSrc(product) : undefined;
           const lineTotal = product ? product.price * item.quantity : undefined;
 
           return (
@@ -126,11 +128,11 @@ export function CartPage() {
               key={item.id}
             >
               <div className="aspect-square overflow-hidden rounded-md bg-slate-100">
-                {product?.imageUrl ? (
+                {imageSrc ? (
                   <img
-                    alt={product.name}
+                    alt={product?.name ?? "Product image"}
                     className="h-full w-full object-cover"
-                    src={product.imageUrl}
+                    src={imageSrc}
                   />
                 ) : (
                   <div className="flex h-full items-center justify-center text-xs text-slate-500">

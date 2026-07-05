@@ -2,6 +2,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { isApiError } from "../../../shared/api/apiError";
 import { useProducts } from "../api/catalogQueries";
 import type { ProductResponse } from "../api/catalogTypes";
+import { productImageSrc } from "../utils/productImage";
 
 const defaultPageSize = 12;
 
@@ -130,17 +131,19 @@ export function ProductListPage() {
 }
 
 function ProductCard({ product }: { product: ProductResponse }) {
+  const imageSrc = productImageSrc(product);
+
   return (
     <Link
       className="group overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
       to={`/products/${product.id}`}
     >
       <div className="aspect-[4/3] bg-slate-100">
-        {product.imageUrl ? (
+        {imageSrc ? (
           <img
             alt={product.name}
             className="h-full w-full object-cover"
-            src={product.imageUrl}
+            src={imageSrc}
           />
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-slate-500">

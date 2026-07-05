@@ -18,3 +18,15 @@ export type ProductSearchParams = {
   page?: number;
   size?: number;
 };
+
+export type AdminProductSearchParams = ProductSearchParams & {
+  status?: ProductStatus | "";
+};
+
+export type UpsertProductRequest = {
+  sku: string;
+  name: string;
+  description?: string;
+  price: number;
+  stockQuantity: number;
+};
