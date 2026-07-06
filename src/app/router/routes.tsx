@@ -1,20 +1,21 @@
-import { createBrowserRouter } from "react-router-dom";
+﻿import { createBrowserRouter } from "react-router-dom";
 import { LoginPage } from "../../features/auth/pages/LoginPage";
 import { RegisterPage } from "../../features/auth/pages/RegisterPage";
 import { CartPage } from "../../features/cart/pages/CartPage";
+import { AdminProductFormPage } from "../../features/catalog/pages/AdminProductFormPage";
+import { AdminProductListPage } from "../../features/catalog/pages/AdminProductListPage";
 import { ProductDetailPage } from "../../features/catalog/pages/ProductDetailPage";
 import { ProductListPage } from "../../features/catalog/pages/ProductListPage";
+import { CheckoutPage } from "../../features/ordering/pages/CheckoutPage";
+import { AdminOrderDetailPage } from "../../features/ordering/pages/AdminOrderDetailPage";
+import { AdminOrderListPage } from "../../features/ordering/pages/AdminOrderListPage";
+import { OrderDetailPage } from "../../features/ordering/pages/OrderDetailPage";
+import { OrdersPage } from "../../features/ordering/pages/OrdersPage";
+import { PaymentDetailPage } from "../../features/payment/pages/PaymentDetailPage";
 import { AdminLayout } from "../layout/AdminLayout";
 import { AppLayout } from "../layout/AppLayout";
 import { RequireAuth } from "./RequireAuth";
 import { RequireRole } from "./RequireRole";
-import { CheckoutPage } from "../../features/ordering/pages/CheckoutPage";
-import { OrderDetailPage } from "../../features/ordering/pages/OrderDetailPage";
-import { OrdersPage } from "../../features/ordering/pages/OrdersPage";
-import { PaymentDetailPage } from "../../features/payment/pages/PaymentDetailPage";
-import { AdminProductFormPage } from "../../features/catalog/pages/AdminProductFormPage";
-import { AdminProductListPage } from "../../features/catalog/pages/AdminProductListPage";
-
 import { RoutePlaceholder } from "./RoutePlaceholder";
 
 export const router = createBrowserRouter([
@@ -74,11 +75,11 @@ export const router = createBrowserRouter([
               },
               {
                 path: "orders",
-                element: <RoutePlaceholder title="Admin orders" />,
+                element: <AdminOrderListPage />,
               },
               {
                 path: "orders/:orderId",
-                element: <RoutePlaceholder title="Admin order detail" />,
+                element: <AdminOrderDetailPage />,
               },
             ],
           },

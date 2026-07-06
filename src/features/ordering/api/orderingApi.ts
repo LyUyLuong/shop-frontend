@@ -1,5 +1,13 @@
-import { apiClient } from "../../../shared/api/apiClient";
-import type { OrderResponse } from "./orderingTypes";
+﻿import { apiClient } from "../../../shared/api/apiClient";
+import type { PageResponse } from "../../../shared/api/apiTypes";
+import type {
+  AdminOrderDetailResponse,
+  AdminOrderSearchParams,
+  AdminOrderSummaryResponse,
+  ChangeOrderStatusRequest,
+  OrderResponse,
+  OrderStatusHistoryResponse,
+} from "./orderingTypes";
 
 export function placeOrder(accessToken: string): Promise<OrderResponse> {
   return apiClient.post<OrderResponse>("/orders", undefined, { accessToken });
@@ -14,4 +22,45 @@ export function getOrder(
   orderId: string,
 ): Promise<OrderResponse> {
   return apiClient.get<OrderResponse>(`/orders/${orderId}`, { accessToken });
+}
+
+export function searchAdminOrders(
+  accessToken: string,
+  params: AdminOrderSearchParams,
+): Promise<PageResponse<AdminOrderSummaryResponse>> {
+  return apiClient.get<PageResponse<AdminOrderSummaryResponse>>("/admin/orders", {
+    accessToken,
+    query: params,
+  });
+}
+
+export function getAdminOrder(
+  accessToken: string,
+  orderId: string,
+): Promise<AdminOrderDetailResponse> {
+  return apiClient.get<AdminOrderDetailResponse>(`/admin/orders/${orderId}`, {
+    accessToken,
+  });
+}
+
+export function getAdminOrderStatusHistory(
+  accessToken: string,
+  orderId: string,
+): Promise<OrderStatusHistoryResponse[]> {
+  return apiClient.get<OrderStatusHistoryResponse[]>(
+    `/admin/orders/${orderId}/status-history`,
+    { accessToken },
+  );
+}
+
+export function changeAdminOrderStatus(
+  accessToken: string,
+  orderId: string,
+  request: ChangeOrderStatusRequest,
+): Promise<AdminOrderDetailResponse> {
+  return apiClient.patch<AdminOrderDetailResponse>(
+    `/admin/orders/${orderId}/status`,
+    request,
+    { accessToken },
+  );
 }
