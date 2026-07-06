@@ -1,6 +1,6 @@
 ﻿import { useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
-import { isApiError } from "../../../shared/api/apiError";
+import { EmptyState, ErrorState, LoadingState } from "../../../shared/components/PageState";
 import {
   useAdminOrder,
   useAdminOrderStatusHistory,
@@ -40,19 +40,21 @@ export function AdminOrderDetailPage() {
   }
 
   if (orderQuery.isLoading) {
-    return <Panel>Loading order...</Panel>;
+    return <LoadingState message="Loading order..." />;
   }
 
   if (orderQuery.error) {
     return (
-      <Panel>
-        <ErrorText error={orderQuery.error} fallback="Could not load admin order." />
-      </Panel>
+      <ErrorState
+        error={orderQuery.error}
+        fallback="Could not load admin order."
+        title="Could not load order"
+      />
     );
   }
 
   if (!orderQuery.data) {
-    return <Panel>Order was not found.</Panel>;
+    return <EmptyState title="Order was not found" />;
   }
 
   const order = orderQuery.data;
@@ -68,9 +70,15 @@ export function AdminOrderDetailPage() {
       <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold text-slate-950">Admin order detail</h1>
-            <p className="mt-1 text-sm text-slate-500">{order.id}</p>
-            <p className="mt-1 text-sm text-slate-500">Customer: {order.userId}</p>
+            <h1 className="text-2xl font-semibold text-slate-950">
+              Order #{shortId(order.id)}
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Customer account {shortId(order.userId)}
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              Order time: {formatDateTime(order.createdAt)}
+            </p>
           </div>
 
           <div className="text-right">
@@ -78,11 +86,19 @@ export function AdminOrderDetailPage() {
             <p className="mt-3 text-xl font-semibold text-slate-950">
               {formatVnd(order.totalAmount)}
             </p>
-            <p className="mt-1 text-sm text-slate-500">
-              Created {formatDateTime(order.createdAt)}
-            </p>
           </div>
         </div>
+
+        <details className="mt-5 rounded-md bg-slate-50 p-3 text-sm text-slate-600">
+          <summary className="cursor-pointer font-medium text-slate-700">
+            Technical details
+          </summary>
+          <dl className="mt-3 space-y-2 break-all">
+            <DetailRow label="Order ID" value={order.id} />
+            <DetailRow label="Customer user ID" value={order.userId} />
+            <DetailRow label="Updated at" value={formatDateTime(order.updatedAt)} />
+          </dl>
+        </details>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -116,15 +132,18 @@ export function AdminOrderDetailPage() {
 
             {historyQuery.error && (
               <div className="mt-4">
-                <ErrorText
+                <ErrorState
                   error={historyQuery.error}
                   fallback="Could not load status history."
+                  title="Could not load status history"
                 />
               </div>
             )}
 
             {historyQuery.isLoading ? (
-              <p className="mt-4 text-sm text-slate-600">Loading status history...</p>
+              <div className="mt-4">
+                <LoadingState message="Loading status history..." />
+              </div>
             ) : history.length === 0 ? (
               <p className="mt-4 text-sm text-slate-600">No status changes yet.</p>
             ) : (
@@ -138,7 +157,7 @@ export function AdminOrderDetailPage() {
                     </div>
                     <p className="mt-2 text-sm text-slate-700">{entry.reason}</p>
                     <p className="mt-1 text-xs text-slate-500">
-                      {entry.actorType} {entry.actorUserId} at {formatDateTime(entry.createdAt)}
+                      {entry.actorType} at {formatDateTime(entry.createdAt)}
                     </p>
                   </li>
                 ))}
@@ -152,9 +171,10 @@ export function AdminOrderDetailPage() {
 
           {changeStatus.error && (
             <div className="mt-4">
-              <ErrorText
+              <ErrorState
                 error={changeStatus.error}
                 fallback="Could not change order status."
+                title="Could not change status"
               />
             </div>
           )}
@@ -207,21 +227,11 @@ function nextFulfillmentStatus(status: OrderStatus): OrderStatus | undefined {
   }
 }
 
-function ErrorText({ error, fallback }: { error: unknown; fallback: string }) {
-  if (isApiError(error)) {
-    return (
-      <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-        <p>{error.userMessage}</p>
-        {error.requestId && (
-          <p className="mt-1 text-xs text-red-600">Request ID: {error.requestId}</p>
-        )}
-      </div>
-    );
-  }
-
+function DetailRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-      {fallback}
+    <div>
+      <dt className="font-medium text-slate-500">{label}</dt>
+      <dd className="mt-0.5 text-slate-700">{value}</dd>
     </div>
   );
 }
@@ -253,12 +263,8 @@ function statusBadgeClass(status: OrderStatus): string {
   }
 }
 
-function Panel({ children }: { children: React.ReactNode }) {
-  return (
-    <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-      {children}
-    </section>
-  );
+function shortId(value: string): string {
+  return value.slice(0, 8);
 }
 
 function formatDateTime(value: string): string {

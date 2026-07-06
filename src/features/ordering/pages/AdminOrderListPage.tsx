@@ -1,6 +1,6 @@
 ﻿import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { isApiError } from "../../../shared/api/apiError";
+import { EmptyState, ErrorState, LoadingState } from "../../../shared/components/PageState";
 import { useAdminOrders } from "../api/orderingQueries";
 import type { OrderStatus } from "../api/orderingTypes";
 
@@ -55,7 +55,7 @@ export function AdminOrderListPage() {
       <div>
         <h1 className="text-2xl font-semibold text-slate-950">Admin orders</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Track paid orders, fulfillment status, and order ownership.
+          Track order processing, fulfillment status, and customer accounts.
         </p>
       </div>
 
@@ -76,7 +76,7 @@ export function AdminOrderListPage() {
         </label>
 
         <label className="block text-sm font-medium text-slate-700">
-          Created from
+          Order time from
           <input
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
             type="datetime-local"
@@ -86,7 +86,7 @@ export function AdminOrderListPage() {
         </label>
 
         <label className="block text-sm font-medium text-slate-700">
-          Created to
+          Order time to
           <input
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
             type="datetime-local"
@@ -97,17 +97,25 @@ export function AdminOrderListPage() {
       </div>
 
       {ordersQuery.error && (
-        <ErrorAlert
+        <ErrorState
           error={ordersQuery.error}
           fallback="Could not load admin orders."
+          title="Could not load orders"
         />
       )}
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
         {ordersQuery.isLoading ? (
-          <div className="p-6 text-sm text-slate-600">Loading orders...</div>
+          <div className="p-6">
+            <LoadingState message="Loading orders..." />
+          </div>
         ) : orders.length === 0 ? (
-          <div className="p-6 text-sm text-slate-600">No orders found.</div>
+          <div className="p-6">
+            <EmptyState
+              title="No orders found"
+              description="Try another status or order time filter."
+            />
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
@@ -118,7 +126,7 @@ export function AdminOrderListPage() {
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Items</th>
                   <th className="px-4 py-3">Total</th>
-                  <th className="px-4 py-3">Created</th>
+                  <th className="px-4 py-3">Order time</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -126,10 +134,11 @@ export function AdminOrderListPage() {
                 {orders.map((order) => (
                   <tr key={order.id}>
                     <td className="px-4 py-3">
-                      <p className="font-medium text-slate-950">{shortId(order.id)}</p>
-                      <p className="text-xs text-slate-500">{order.id}</p>
+                      <p className="font-medium text-slate-950">Order #{shortId(order.id)}</p>
                     </td>
-                    <td className="px-4 py-3 text-slate-700">{shortId(order.userId)}</td>
+                    <td className="px-4 py-3 text-slate-700">
+                      Customer account {shortId(order.userId)}
+                    </td>
                     <td className="px-4 py-3">
                       <StatusBadge status={order.status} />
                     </td>
@@ -184,25 +193,6 @@ export function AdminOrderListPage() {
         </div>
       )}
     </section>
-  );
-}
-
-function ErrorAlert({ error, fallback }: { error: unknown; fallback: string }) {
-  if (isApiError(error)) {
-    return (
-      <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-        <p>{error.userMessage}</p>
-        {error.requestId && (
-          <p className="mt-1 text-xs text-red-600">Request ID: {error.requestId}</p>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-      {fallback}
-    </div>
   );
 }
 
