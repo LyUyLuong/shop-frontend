@@ -1,11 +1,13 @@
-import {
+﻿import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
+import { subscribeAuthSessionExpired } from "./authEvents";
 import {
   clearAccessToken,
   clearAuthSession,
@@ -94,6 +96,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setAccessToken(null);
     setStoredSession(null);
   }, []);
+
+  useEffect(() => subscribeAuthSessionExpired(logout), [logout]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

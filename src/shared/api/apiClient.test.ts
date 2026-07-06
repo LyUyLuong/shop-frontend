@@ -1,4 +1,5 @@
 ﻿import { beforeEach, describe, expect, it, vi } from "vitest";
+import { authSessionExpiredEventName } from "../auth/authEvents";
 import { ApiError } from "./apiError";
 import { apiClient } from "./apiClient";
 
@@ -79,6 +80,34 @@ describe("apiClient", () => {
         userMessage: "The request is invalid.",
         requestId: "request-123",
       } satisfies Partial<ApiError>);
+  });
+
+  it("notifies auth layer when backend returns 401", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(
+        {
+          success: false,
+          error: {
+            code: "COMMON_002",
+            message: "Unauthorized",
+          },
+          timestamp: "2026-07-06T00:00:00Z",
+        },
+        { status: 401 },
+      ),
+    );
+    const listener = vi.fn();
+
+    vi.stubGlobal("fetch", fetchMock);
+    window.addEventListener(authSessionExpiredEventName, listener);
+
+    await expect(
+      apiClient.get("/cart", { accessToken: "expired-token" }),
+    ).rejects.toMatchObject({ status: 401 });
+
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    window.removeEventListener(authSessionExpiredEventName, listener);
   });
 });
 

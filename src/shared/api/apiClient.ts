@@ -1,7 +1,8 @@
+﻿import { notifyAuthSessionExpired } from "../auth/authEvents";
+import { env } from "../config/env";
 import { ApiError } from "./apiError";
 import type { ApiResponse } from "./apiTypes";
 import { createRequestId, readResponseRequestId } from "./requestId";
-import { env } from "../config/env";
 
 type QueryValue = string | number | boolean | null | undefined;
 
@@ -39,6 +40,10 @@ export async function apiRequest<T>(
   const apiResponse = await readJson<ApiResponse<T>>(response);
 
   if (!response.ok) {
+    if (response.status === 401) {
+      notifyAuthSessionExpired();
+    }
+
     throw toApiError(response, apiResponse, responseRequestId);
   }
 

@@ -1,13 +1,19 @@
-﻿import { render, screen } from "@testing-library/react";
+﻿import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { authSessionExpiredEventName } from "../../shared/auth/authEvents";
 import { AuthProvider } from "../../shared/auth/authStore";
-import { saveAccessToken, saveAuthSession } from "../../shared/auth/tokenStorage";
+import {
+  readAccessToken,
+  saveAccessToken,
+  saveAuthSession,
+} from "../../shared/auth/tokenStorage";
 import { RequireAuth } from "./RequireAuth";
 import { RequireRole } from "./RequireRole";
 
 describe("route guards", () => {
   afterEach(() => {
+    cleanup();
     localStorage.clear();
   });
 
@@ -55,6 +61,23 @@ describe("route guards", () => {
     });
 
     expect(await screen.findByText("Admin orders page")).toBeInTheDocument();
+  });
+
+  it("clears session and redirects when auth expiry event is received", async () => {
+    storeSession(["USER"]);
+
+    renderWithAuthRoutes("/cart", {
+      guard: <RequireAuth />,
+      protectedPath: "/cart",
+      protectedText: "Cart page",
+    });
+
+    expect(await screen.findByText("Cart page")).toBeInTheDocument();
+
+    window.dispatchEvent(new Event(authSessionExpiredEventName));
+
+    expect(await screen.findByText("Login page")).toBeInTheDocument();
+    expect(readAccessToken()).toBeNull();
   });
 });
 
