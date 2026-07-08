@@ -1,6 +1,12 @@
-﻿import { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { EmptyState, ErrorState, LoadingState } from "../../../shared/components/PageState";
+import {
+  formatDateTime,
+  formatVnd,
+  humanizeOrderStatus,
+  shortId,
+} from "../../../shared/utils/format";
 import { useAdminOrders } from "../api/orderingQueries";
 import type { OrderStatus } from "../api/orderingTypes";
 
@@ -53,9 +59,12 @@ export function AdminOrderListPage() {
   return (
     <section className="space-y-5">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-950">Admin orders</h1>
+        <p className="text-sm font-medium uppercase text-teal-700">
+          Shop operations
+        </p>
+        <h1 className="mt-2 text-2xl font-semibold text-slate-950">Orders</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Track order processing, fulfillment status, and customer accounts.
+          Track paid orders through packing, shipping, and completion.
         </p>
       </div>
 
@@ -69,14 +78,14 @@ export function AdminOrderListPage() {
           >
             {statusOptions.map((option) => (
               <option key={option || "ALL"} value={option}>
-                {option || "All statuses"}
+                {option ? humanizeOrderStatus(option) : "All statuses"}
               </option>
             ))}
           </select>
         </label>
 
         <label className="block text-sm font-medium text-slate-700">
-          Order time from
+          Placed from
           <input
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
             type="datetime-local"
@@ -86,7 +95,7 @@ export function AdminOrderListPage() {
         </label>
 
         <label className="block text-sm font-medium text-slate-700">
-          Order time to
+          Placed to
           <input
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
             type="datetime-local"
@@ -113,20 +122,20 @@ export function AdminOrderListPage() {
           <div className="p-6">
             <EmptyState
               title="No orders found"
-              description="Try another status or order time filter."
+              description="Try another status or placed-time filter."
             />
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
                 <tr>
                   <th className="px-4 py-3">Order</th>
                   <th className="px-4 py-3">Customer</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Items</th>
                   <th className="px-4 py-3">Total</th>
-                  <th className="px-4 py-3">Order time</th>
+                  <th className="px-4 py-3">Placed at</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -137,7 +146,7 @@ export function AdminOrderListPage() {
                       <p className="font-medium text-slate-950">Order #{shortId(order.id)}</p>
                     </td>
                     <td className="px-4 py-3 text-slate-700">
-                      Customer account {shortId(order.userId)}
+                      Account #{shortId(order.userId)}
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge status={order.status} />
@@ -201,7 +210,7 @@ function StatusBadge({ status }: { status: OrderStatus }) {
 
   return (
     <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${className}`}>
-      {status}
+      {humanizeOrderStatus(status)}
     </span>
   );
 }
@@ -229,20 +238,4 @@ function toIsoInstant(value: string): string | undefined {
   }
 
   return new Date(value).toISOString();
-}
-
-function shortId(value: string): string {
-  return value.slice(0, 8);
-}
-
-function formatDateTime(value: string): string {
-  return new Date(value).toLocaleString();
-}
-
-function formatVnd(value: number): string {
-  return new Intl.NumberFormat("vi-VN", {
-    style: "currency",
-    currency: "VND",
-    maximumFractionDigits: 0,
-  }).format(value);
 }

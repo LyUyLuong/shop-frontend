@@ -1,6 +1,12 @@
-﻿import { useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { EmptyState, ErrorState, LoadingState } from "../../../shared/components/PageState";
+import {
+  formatDateTime,
+  formatVnd,
+  humanizeOrderStatus,
+  shortId,
+} from "../../../shared/utils/format";
 import {
   useAdminOrder,
   useAdminOrderStatusHistory,
@@ -65,26 +71,26 @@ export function AdminOrderDetailPage() {
   return (
     <section className="space-y-5">
       <Link className="text-sm font-medium text-teal-700" to="/admin/orders">
-        Back to admin orders
+        Back to orders
       </Link>
 
       <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold text-slate-950">
+            <p className="text-sm font-medium uppercase text-teal-700">
               Order #{shortId(order.id)}
-            </h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Customer account {shortId(order.userId)}
             </p>
-            <p className="mt-1 text-sm text-slate-500">
-              Order time: {formatDateTime(order.createdAt)}
+            <h1 className="mt-2 text-2xl font-semibold text-slate-950">
+              {humanizeOrderStatus(order.status)}
+            </h1>
+            <p className="mt-2 text-sm text-slate-500">
+              Account #{shortId(order.userId)} - placed {formatDateTime(order.createdAt)}
             </p>
           </div>
 
-          <div className="text-right">
+          <div className="text-left sm:text-right">
             <StatusBadge status={order.status} />
-            <p className="mt-3 text-xl font-semibold text-slate-950">
+            <p className="mt-3 text-2xl font-semibold text-slate-950">
               {formatVnd(order.totalAmount)}
             </p>
           </div>
@@ -111,14 +117,16 @@ export function AdminOrderDetailPage() {
 
             {order.items.map((item) => (
               <div
-                className="grid gap-3 border-b border-slate-100 p-4 last:border-b-0 sm:grid-cols-[64px_minmax(0,1fr)_auto]"
+                className="grid gap-3 border-b border-slate-100 p-4 last:border-b-0 sm:grid-cols-[72px_minmax(0,1fr)_auto]"
                 key={item.id}
               >
                 <OrderItemImage imageUrl={item.imageUrl} alt={item.productName} />
                 <div>
                   <p className="font-semibold text-slate-950">{item.productName}</p>
-                  <p className="mt-1 text-sm text-slate-500">{item.productSku}</p>
-                  <p className="mt-1 text-sm text-slate-600">
+                  <p className="mt-1 text-xs font-medium uppercase text-slate-500">
+                    {item.productSku}
+                  </p>
+                  <p className="mt-2 text-sm text-slate-600">
                     {formatVnd(item.unitPrice)} x {item.quantity}
                   </p>
                 </div>
@@ -184,11 +192,12 @@ export function AdminOrderDetailPage() {
           {nextStatus ? (
             <form className="mt-4 space-y-4" onSubmit={handleChangeStatus}>
               <div className="rounded-md bg-slate-50 p-3 text-sm text-slate-700">
-                Move order from <strong>{order.status}</strong> to <strong>{nextStatus}</strong>.
+                Move order from <strong>{humanizeOrderStatus(order.status)}</strong> to{" "}
+                <strong>{humanizeOrderStatus(nextStatus)}</strong>.
               </div>
 
               <label className="block text-sm font-medium text-slate-700">
-                Reason
+                Internal note
                 <textarea
                   className="mt-1 min-h-28 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
                   value={reason}
@@ -202,12 +211,14 @@ export function AdminOrderDetailPage() {
                 type="submit"
                 disabled={changeStatus.isPending || reason.trim().length === 0}
               >
-                {changeStatus.isPending ? "Changing status..." : `Move to ${nextStatus}`}
+                {changeStatus.isPending
+                  ? "Changing status..."
+                  : `Move to ${humanizeOrderStatus(nextStatus)}`}
               </button>
             </form>
           ) : (
             <p className="mt-4 text-sm text-slate-600">
-              No fulfillment action is available for status {order.status}.
+              No fulfillment action is available for {humanizeOrderStatus(order.status)}.
             </p>
           )}
         </aside>
@@ -243,7 +254,7 @@ function StatusBadge({ status }: { status: OrderStatus }) {
 
   return (
     <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${className}`}>
-      {status}
+      {humanizeOrderStatus(status)}
     </span>
   );
 }
@@ -263,20 +274,4 @@ function statusBadgeClass(status: OrderStatus): string {
     default:
       return "bg-slate-100 text-slate-700";
   }
-}
-
-function shortId(value: string): string {
-  return value.slice(0, 8);
-}
-
-function formatDateTime(value: string): string {
-  return new Date(value).toLocaleString();
-}
-
-function formatVnd(value: number): string {
-  return new Intl.NumberFormat("vi-VN", {
-    style: "currency",
-    currency: "VND",
-    maximumFractionDigits: 0,
-  }).format(value);
 }

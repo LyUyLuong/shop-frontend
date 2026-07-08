@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { isApiError } from "../../../shared/api/apiError";
+import { formatVnd, shortId } from "../../../shared/utils/format";
 import {
   useAdminProducts,
   useDeactivateProduct,
@@ -41,7 +42,9 @@ export function AdminProductListPage() {
   }
 
   async function handleDeactivate(productId: string) {
-    const confirmed = window.confirm("Deactivate this product?");
+    const confirmed = window.confirm(
+      "Deactivate this product? It will disappear from the customer catalog.",
+    );
 
     if (!confirmed) {
       return;
@@ -54,9 +57,14 @@ export function AdminProductListPage() {
     <section className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-950">Admin products</h1>
+          <p className="text-sm font-medium uppercase text-teal-700">
+            Shop operations
+          </p>
+          <h1 className="mt-2 text-2xl font-semibold text-slate-950">
+            Products
+          </h1>
           <p className="mt-1 text-sm text-slate-600">
-            Manage product records, stock, status, and product images.
+            Manage catalog availability, stock, price, and product images.
           </p>
         </div>
 
@@ -75,20 +83,20 @@ export function AdminProductListPage() {
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
             value={keyword}
             onChange={(event) => handleKeywordChange(event.target.value)}
-            placeholder="SKU or name"
+            placeholder="SKU or product name"
           />
         </label>
 
         <label className="block text-sm font-medium text-slate-700">
-          Status
+          Visibility
           <select
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
             value={status}
             onChange={(event) => handleStatusChange(event.target.value as ProductStatus | "")}
           >
-            <option value="">All</option>
-            <option value="ACTIVE">ACTIVE</option>
-            <option value="INACTIVE">INACTIVE</option>
+            <option value="">All products</option>
+            <option value="ACTIVE">Visible to customers</option>
+            <option value="INACTIVE">Inactive</option>
           </select>
         </label>
       </div>
@@ -113,71 +121,89 @@ export function AdminProductListPage() {
         {productsQuery.isLoading ? (
           <div className="p-6 text-sm text-slate-600">Loading products...</div>
         ) : products.length === 0 ? (
-          <div className="p-6 text-sm text-slate-600">No products found.</div>
+          <div className="p-8 text-center">
+            <h2 className="text-lg font-semibold text-slate-950">
+              No products found
+            </h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Try another keyword or visibility filter.
+            </p>
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
                 <tr>
                   <th className="px-4 py-3">Product</th>
                   <th className="px-4 py-3">SKU</th>
                   <th className="px-4 py-3">Price</th>
                   <th className="px-4 py-3">Stock</th>
-                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Visibility</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {products.map((product) => {
                   const imageSrc = productImageSrc(product);
+                  const lowStock = product.stockQuantity > 0 && product.stockQuantity <= 5;
 
                   return (
                     <tr key={product.id}>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="h-12 w-12 overflow-hidden rounded-md bg-slate-100">
-                          {imageSrc ? (
-                            <img
-                              alt={product.name}
-                              className="h-full w-full object-cover"
-                              src={imageSrc}
-                            />
-                          ) : null}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="h-12 w-12 overflow-hidden rounded-md bg-slate-100">
+                            {imageSrc ? (
+                              <img
+                                alt={product.name}
+                                className="h-full w-full object-cover"
+                                src={imageSrc}
+                              />
+                            ) : (
+                              <div className="flex h-full items-center justify-center text-[10px] text-slate-400">
+                                No image
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <p className="font-medium text-slate-950">{product.name}</p>
+                            <p className="text-xs text-slate-500">
+                              Ref #{shortId(product.id)}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium text-slate-950">{product.name}</p>
-                          <p className="text-xs text-slate-500">{product.id}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-slate-700">{product.sku}</td>
-                    <td className="px-4 py-3 font-medium text-slate-950">
-                      {formatVnd(product.price)}
-                    </td>
-                    <td className="px-4 py-3 text-slate-700">{product.stockQuantity}</td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={product.status} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-2">
-                        <Link
-                          className="rounded-md border border-slate-300 px-3 py-1.5 font-medium text-slate-700 transition hover:bg-slate-50"
-                          to={`/admin/products/${product.id}`}
-                        >
-                          Edit
-                        </Link>
-                        {product.status === "ACTIVE" && (
-                          <button
-                            className="rounded-md border border-red-200 px-3 py-1.5 font-medium text-red-600 transition hover:bg-red-50 disabled:text-slate-300"
-                            type="button"
-                            disabled={deactivateProduct.isPending}
-                            onClick={() => handleDeactivate(product.id)}
+                      </td>
+                      <td className="px-4 py-3 text-slate-700">{product.sku}</td>
+                      <td className="px-4 py-3 font-medium text-slate-950">
+                        {formatVnd(product.price)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={lowStock ? "font-semibold text-amber-700" : "text-slate-700"}>
+                          {product.stockQuantity}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={product.status} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end gap-2">
+                          <Link
+                            className="rounded-md border border-slate-300 px-3 py-1.5 font-medium text-slate-700 transition hover:bg-slate-50"
+                            to={`/admin/products/${product.id}`}
                           >
-                            Deactivate
-                          </button>
-                        )}
-                      </div>
-                    </td>
+                            Edit
+                          </Link>
+                          {product.status === "ACTIVE" && (
+                            <button
+                              className="rounded-md border border-red-200 px-3 py-1.5 font-medium text-red-600 transition hover:bg-red-50 disabled:text-slate-300"
+                              type="button"
+                              disabled={deactivateProduct.isPending}
+                              onClick={() => handleDeactivate(product.id)}
+                            >
+                              Deactivate
+                            </button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
@@ -221,18 +247,11 @@ function StatusBadge({ status }: { status: ProductStatus }) {
     status === "ACTIVE"
       ? "bg-emerald-50 text-emerald-700"
       : "bg-slate-100 text-slate-600";
+  const label = status === "ACTIVE" ? "Visible" : "Inactive";
 
   return (
     <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${className}`}>
-      {status}
+      {label}
     </span>
   );
-}
-
-function formatVnd(value: number): string {
-  return new Intl.NumberFormat("vi-VN", {
-    style: "currency",
-    currency: "VND",
-    maximumFractionDigits: 0,
-  }).format(value);
 }
