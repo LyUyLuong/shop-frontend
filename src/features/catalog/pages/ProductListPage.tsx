@@ -1,5 +1,6 @@
 import { Link, useSearchParams } from "react-router-dom";
 import { isApiError } from "../../../shared/api/apiError";
+import { formatVnd } from "../../../shared/utils/format";
 import { useProducts } from "../api/catalogQueries";
 import type { ProductResponse } from "../api/catalogTypes";
 import { productImageSrc } from "../utils/productImage";
@@ -41,37 +42,52 @@ export function ProductListPage() {
 
   return (
     <section className="space-y-6">
-      <div className="flex flex-col gap-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="text-sm font-medium uppercase tracking-wide text-teal-700">
-            Catalog
-          </p>
-          <h1 className="mt-2 text-2xl font-semibold text-slate-950">
-            Products
-          </h1>
-          <p className="mt-2 text-sm text-slate-600">
-            Browse available products before signing in.
-          </p>
-        </div>
+      <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div className="max-w-2xl">
+            <p className="text-sm font-medium uppercase text-teal-700">
+              Shop catalog
+            </p>
+            <h1 className="mt-2 text-2xl font-semibold text-slate-950">
+              Products
+            </h1>
+            <p className="mt-2 text-sm text-slate-600">
+              View available products first. Sign in only when you add items to
+              cart or place an order.
+            </p>
+          </div>
 
-        <label className="flex w-full flex-col gap-2 md:w-80">
-          <span className="text-sm font-medium text-slate-700">Search</span>
-          <input
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
-            defaultValue={keyword}
-            placeholder="Search by product name or SKU"
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                updateKeyword(event.currentTarget.value);
-              }
-            }}
-          />
-        </label>
+          <label className="flex w-full flex-col gap-2 md:w-80">
+            <span className="text-sm font-medium text-slate-700">Search</span>
+            <input
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+              defaultValue={keyword}
+              placeholder="Search name or SKU"
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  updateKeyword(event.currentTarget.value);
+                }
+              }}
+            />
+          </label>
+        </div>
       </div>
 
       {productsQuery.isLoading && (
-        <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600">
-          Loading products...
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <div
+              className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
+              key={index}
+            >
+              <div className="aspect-[4/3] animate-pulse bg-slate-100" />
+              <div className="space-y-3 p-4">
+                <div className="h-3 w-20 rounded bg-slate-100" />
+                <div className="h-4 w-4/5 rounded bg-slate-100" />
+                <div className="h-4 w-28 rounded bg-slate-100" />
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
@@ -87,8 +103,13 @@ export function ProductListPage() {
       )}
 
       {productsQuery.data && productsQuery.data.content.length === 0 && (
-        <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600">
-          No products found.
+        <div className="rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <h2 className="text-xl font-semibold text-slate-950">
+            No matching products
+          </h2>
+          <p className="mt-2 text-sm text-slate-600">
+            Try another keyword or clear the search box.
+          </p>
         </div>
       )}
 
@@ -100,9 +121,9 @@ export function ProductListPage() {
             ))}
           </div>
 
-          <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm">
+          <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
             <button
-              className="rounded-md border border-slate-300 px-3 py-1.5 font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-md border border-slate-300 px-3 py-1.5 font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               type="button"
               disabled={productsQuery.data.page <= 0}
               onClick={() => updatePage(productsQuery.data.page - 1)}
@@ -116,7 +137,7 @@ export function ProductListPage() {
             </span>
 
             <button
-              className="rounded-md border border-slate-300 px-3 py-1.5 font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-md border border-slate-300 px-3 py-1.5 font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               type="button"
               disabled={!productsQuery.data.hasNext}
               onClick={() => updatePage(productsQuery.data.page + 1)}
@@ -132,13 +153,14 @@ export function ProductListPage() {
 
 function ProductCard({ product }: { product: ProductResponse }) {
   const imageSrc = productImageSrc(product);
+  const lowStock = product.stockQuantity > 0 && product.stockQuantity <= 5;
 
   return (
     <Link
       className="group overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
       to={`/products/${product.id}`}
     >
-      <div className="aspect-[4/3] bg-slate-100">
+      <div className="relative aspect-[4/3] bg-slate-100">
         {imageSrc ? (
           <img
             alt={product.name}
@@ -150,30 +172,35 @@ function ProductCard({ product }: { product: ProductResponse }) {
             No image
           </div>
         )}
+
+        <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm">
+          {product.stockQuantity > 0 ? "Available" : "Sold out"}
+        </span>
       </div>
 
-      <div className="space-y-2 p-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-          {product.sku}
-        </p>
-        <h2 className="line-clamp-2 text-base font-semibold text-slate-950 group-hover:text-teal-700">
-          {product.name}
-        </h2>
-        <p className="text-sm font-semibold text-slate-900">
-          {formatVnd(product.price)}
-        </p>
-        <p className="text-xs text-slate-500">
-          Stock: {product.stockQuantity}
-        </p>
+      <div className="space-y-3 p-4">
+        <div>
+          <p className="text-xs font-medium uppercase text-slate-500">
+            {product.sku}
+          </p>
+          <h2 className="mt-1 line-clamp-2 text-base font-semibold text-slate-950 group-hover:text-teal-700">
+            {product.name}
+          </h2>
+        </div>
+
+        <div className="flex items-end justify-between gap-3">
+          <p className="text-base font-bold text-slate-950">
+            {formatVnd(product.price)}
+          </p>
+          <p
+            className={`text-xs font-medium ${
+              lowStock ? "text-amber-700" : "text-slate-500"
+            }`}
+          >
+            {lowStock ? "Low stock" : `${product.stockQuantity} left`}
+          </p>
+        </div>
       </div>
     </Link>
   );
-}
-
-function formatVnd(value: number): string {
-  return new Intl.NumberFormat("vi-VN", {
-    style: "currency",
-    currency: "VND",
-    maximumFractionDigits: 0,
-  }).format(value);
 }

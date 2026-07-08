@@ -1,6 +1,7 @@
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { isApiError } from "../../../shared/api/apiError";
 import { useAuth } from "../../../shared/auth/authStore";
+import { formatVnd } from "../../../shared/utils/format";
 import { useAddCartItem } from "../../cart/api/cartQueries";
 import { useProduct } from "../api/catalogQueries";
 import { productImageSrc } from "../utils/productImage";
@@ -15,7 +16,7 @@ export function ProductDetailPage() {
 
   if (productQuery.isLoading) {
     return (
-      <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600">
+      <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
         Loading product...
       </div>
     );
@@ -23,7 +24,7 @@ export function ProductDetailPage() {
 
   if (productQuery.error) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+      <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-700 shadow-sm">
         {isApiError(productQuery.error)
           ? productQuery.error.userMessage
           : "Could not load product."}
@@ -38,7 +39,7 @@ export function ProductDetailPage() {
 
   if (!productQuery.data) {
     return (
-      <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600">
+      <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
         Product was not found.
       </div>
     );
@@ -46,6 +47,8 @@ export function ProductDetailPage() {
 
   const product = productQuery.data;
   const imageSrc = productImageSrc(product);
+  const isOutOfStock = product.stockQuantity <= 0;
+  const lowStock = product.stockQuantity > 0 && product.stockQuantity <= 5;
 
   async function handleAddToCart() {
     if (!isAuthenticated) {
@@ -73,7 +76,7 @@ export function ProductDetailPage() {
         Back to products
       </Link>
 
-      <div className="grid gap-6 rounded-lg border border-slate-200 bg-white p-6 shadow-sm lg:grid-cols-[minmax(0,520px)_minmax(0,1fr)]">
+      <div className="grid gap-6 rounded-lg border border-slate-200 bg-white p-6 shadow-sm lg:grid-cols-[minmax(0,560px)_minmax(0,1fr)]">
         <div className="aspect-[4/3] overflow-hidden rounded-lg bg-slate-100">
           {imageSrc ? (
             <img
@@ -90,27 +93,41 @@ export function ProductDetailPage() {
 
         <div className="space-y-5">
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            <p className="text-xs font-medium uppercase text-slate-500">
               {product.sku}
             </p>
             <h1 className="mt-2 text-3xl font-semibold text-slate-950">
               {product.name}
             </h1>
-            <p className="mt-3 text-2xl font-bold text-slate-950">
+            <p className="mt-3 text-3xl font-bold text-slate-950">
               {formatVnd(product.price)}
             </p>
           </div>
 
-          <div className="rounded-md bg-slate-50 p-4 text-sm text-slate-600">
-            {product.description || "No description."}
+          <div className="rounded-md bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+            {product.description || "No description has been added yet."}
           </div>
 
           <div className="flex flex-wrap items-center gap-3 text-sm">
-            <span className="rounded-full bg-emerald-50 px-3 py-1 font-medium text-emerald-700">
-              {product.status}
+            <span
+              className={`rounded-full px-3 py-1 font-semibold ${
+                isOutOfStock
+                  ? "bg-red-50 text-red-700"
+                  : "bg-emerald-50 text-emerald-700"
+              }`}
+            >
+              {isOutOfStock ? "Sold out" : "Available"}
             </span>
-            <span className="text-slate-600">
-              Stock: {product.stockQuantity}
+            <span
+              className={`font-medium ${
+                lowStock ? "text-amber-700" : "text-slate-600"
+              }`}
+            >
+              {isOutOfStock
+                ? "No stock remaining"
+                : lowStock
+                  ? `Only ${product.stockQuantity} left`
+                  : `${product.stockQuantity} items in stock`}
             </span>
           </div>
 
@@ -122,35 +139,31 @@ export function ProductDetailPage() {
             </div>
           )}
 
-          <button
-            className="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-            type="button"
-            disabled={product.stockQuantity <= 0 || addCartItem.isPending}
-            onClick={handleAddToCart}
-          >
-            {product.stockQuantity <= 0
-              ? "Out of stock"
-              : addCartItem.isPending
-                ? "Adding..."
-                : "Add to cart"}
-          </button>
+          <div className="space-y-3">
+            <button
+              className="w-full rounded-md bg-teal-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300 sm:w-auto"
+              type="button"
+              disabled={isOutOfStock || addCartItem.isPending}
+              onClick={handleAddToCart}
+            >
+              {isOutOfStock
+                ? "Out of stock"
+                : addCartItem.isPending
+                  ? "Adding..."
+                  : isAuthenticated
+                    ? "Add to cart"
+                    : "Login to buy"}
+            </button>
 
-          {!isAuthenticated && (
-            <p className="text-sm text-slate-500">
-              You can browse products without signing in. Login is required when
-              adding items to cart.
-            </p>
-          )}
+            {!isAuthenticated && (
+              <p className="text-sm text-slate-500">
+                You can browse freely. Login is required only when adding items
+                to cart or placing an order.
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </section>
   );
-}
-
-function formatVnd(value: number): string {
-  return new Intl.NumberFormat("vi-VN", {
-    style: "currency",
-    currency: "VND",
-    maximumFractionDigits: 0,
-  }).format(value);
 }

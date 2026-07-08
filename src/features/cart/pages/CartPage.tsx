@@ -2,12 +2,9 @@ import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQueries } from "@tanstack/react-query";
 import { isApiError } from "../../../shared/api/apiError";
-import {
-  getProduct,
-} from "../../catalog/api/catalogApi";
-import {
-  catalogQueryKeys,
-} from "../../catalog/api/catalogQueries";
+import { formatVnd } from "../../../shared/utils/format";
+import { getProduct } from "../../catalog/api/catalogApi";
+import { catalogQueryKeys } from "../../catalog/api/catalogQueries";
 import type { ProductResponse } from "../../catalog/api/catalogTypes";
 import { productImageSrc } from "../../catalog/utils/productImage";
 import {
@@ -66,7 +63,7 @@ export function CartPage() {
 
   if (cartQuery.isLoading) {
     return (
-      <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600">
+      <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
         Loading cart...
       </div>
     );
@@ -74,7 +71,7 @@ export function CartPage() {
 
   if (cartQuery.error) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+      <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-700 shadow-sm">
         {isApiError(cartQuery.error)
           ? cartQuery.error.userMessage
           : "Could not load cart."}
@@ -85,7 +82,9 @@ export function CartPage() {
   if (!cart || cart.items.length === 0) {
     return (
       <section className="rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm">
-        <h1 className="text-2xl font-semibold text-slate-950">Your cart is empty</h1>
+        <h1 className="text-2xl font-semibold text-slate-950">
+          Your cart is empty
+        </h1>
         <p className="mt-2 text-sm text-slate-600">
           Browse products and add something to your cart.
         </p>
@@ -99,13 +98,16 @@ export function CartPage() {
     );
   }
 
+  const itemCount = cart.items.reduce((total, item) => total + item.quantity, 0);
+
   return (
-    <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+    <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
       <div className="space-y-4">
         <div>
           <h1 className="text-2xl font-semibold text-slate-950">Cart</h1>
           <p className="mt-1 text-sm text-slate-600">
-            Review quantities before checkout.
+            Review quantities before checkout. Stock is validated again when the
+            order is created.
           </p>
         </div>
 
@@ -124,7 +126,7 @@ export function CartPage() {
 
           return (
             <article
-              className="grid gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-[96px_minmax(0,1fr)_auto]"
+              className="grid gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-[104px_minmax(0,1fr)_auto]"
               key={item.id}
             >
               <div className="aspect-square overflow-hidden rounded-md bg-slate-100">
@@ -145,11 +147,13 @@ export function CartPage() {
                 <h2 className="font-semibold text-slate-950">
                   {product?.name ?? "Loading product..."}
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Product ID: {item.productId}
-                </p>
                 {product && (
-                  <p className="mt-2 text-sm text-slate-700">
+                  <p className="mt-1 text-xs font-medium uppercase text-slate-500">
+                    {product.sku}
+                  </p>
+                )}
+                {product && (
+                  <p className="mt-3 text-sm text-slate-700">
                     {formatVnd(product.price)} each
                   </p>
                 )}
@@ -172,6 +176,7 @@ export function CartPage() {
                         quantity: item.quantity - 1,
                       })
                     }
+                    aria-label="Decrease quantity"
                   >
                     -
                   </button>
@@ -188,6 +193,7 @@ export function CartPage() {
                         quantity: item.quantity + 1,
                       })
                     }
+                    aria-label="Increase quantity"
                   >
                     +
                   </button>
@@ -208,14 +214,12 @@ export function CartPage() {
       </div>
 
       <aside className="h-fit rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-950">Summary</h2>
+        <h2 className="text-lg font-semibold text-slate-950">Order summary</h2>
 
         <div className="mt-4 space-y-3 text-sm">
           <div className="flex justify-between">
             <span className="text-slate-600">Items</span>
-            <span className="font-medium text-slate-950">
-              {cart.items.reduce((total, item) => total + item.quantity, 0)}
-            </span>
+            <span className="font-medium text-slate-950">{itemCount}</span>
           </div>
 
           <div className="flex justify-between">
@@ -246,12 +250,4 @@ export function CartPage() {
       </aside>
     </section>
   );
-}
-
-function formatVnd(value: number): string {
-  return new Intl.NumberFormat("vi-VN", {
-    style: "currency",
-    currency: "VND",
-    maximumFractionDigits: 0,
-  }).format(value);
 }
