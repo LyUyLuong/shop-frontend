@@ -13,6 +13,7 @@ export type OrderItemResponse = {
   productId: string;
   productSku: string;
   productName: string;
+  imageUrl?: string | null;
   unitPrice: number;
   quantity: number;
   lineTotal: number;

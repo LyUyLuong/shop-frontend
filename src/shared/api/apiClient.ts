@@ -58,6 +58,42 @@ export async function apiRequest<T>(
   return apiResponse.data as T;
 }
 
+export async function apiBlobRequest(
+  path: string,
+  options: ApiRequestOptions = {},
+): Promise<Blob> {
+  const { accessToken, query, body, headers, ...requestInit } = options;
+
+  const requestId = createRequestId();
+  const requestHeaders = new Headers(headers);
+
+  requestHeaders.set("Accept", "image/*");
+  requestHeaders.set("X-Request-Id", requestId);
+
+  if (accessToken) {
+    requestHeaders.set("Authorization", `Bearer ${accessToken}`);
+  }
+
+  const response = await fetch(buildUrl(path, query), {
+    ...requestInit,
+    headers: requestHeaders,
+    body: prepareBody(body, requestHeaders),
+  });
+
+  const responseRequestId = readResponseRequestId(response) ?? requestId;
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      notifyAuthSessionExpired();
+    }
+
+    const apiResponse = await readJson<ApiResponse<unknown>>(response);
+    throw toApiError(response, apiResponse, responseRequestId);
+  }
+
+  return response.blob();
+}
+
 export const apiClient = {
   get<T>(path: string, options?: ApiMethodOptions): Promise<T> {
     return apiRequest<T>(path, { ...options, method: "GET" });
@@ -78,11 +114,16 @@ export const apiClient = {
   delete<T>(path: string, options?: ApiMethodOptions): Promise<T> {
     return apiRequest<T>(path, { ...options, method: "DELETE" });
   },
+
+  getBlob(path: string, options?: ApiMethodOptions): Promise<Blob> {
+    return apiBlobRequest(path, { ...options, method: "GET" });
+  },
 };
 
 function buildUrl(path: string, query?: Record<string, QueryValue>): string {
+  const isAbsoluteUrl = /^https?:\/\//i.test(path);
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  const url = new URL(`${env.apiBaseUrl}${normalizedPath}`);
+  const url = new URL(isAbsoluteUrl ? path : `${env.apiBaseUrl}${normalizedPath}`);
 
   if (query) {
     Object.entries(query).forEach(([key, value]) => {

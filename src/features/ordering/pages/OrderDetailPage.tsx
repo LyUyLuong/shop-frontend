@@ -2,6 +2,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { isApiError } from "../../../shared/api/apiError";
 import { usePayMockPayment } from "../../payment/api/paymentQueries";
 import { useOrder } from "../api/orderingQueries";
+import { OrderItemImage } from "../components/OrderItemImage";
 
 export function OrderDetailPage() {
   const { orderId } = useParams();
@@ -85,9 +86,10 @@ export function OrderDetailPage() {
       <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
         {order.items.map((item) => (
           <div
-            className="grid gap-3 border-b border-slate-100 p-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto]"
+            className="grid gap-3 border-b border-slate-100 p-4 last:border-b-0 sm:grid-cols-[64px_minmax(0,1fr)_auto]"
             key={item.id}
           >
+            <OrderItemImage imageUrl={item.imageUrl} alt={item.productName} />
             <div>
               <p className="font-semibold text-slate-950">{item.productName}</p>
               <p className="mt-1 text-sm text-slate-500">{item.productSku}</p>

@@ -53,6 +53,34 @@ describe("apiClient", () => {
     );
   });
 
+  it("loads blobs from absolute URLs with bearer token", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response("image-bytes", {
+        status: 200,
+        headers: { "Content-Type": "image/jpeg" },
+      }),
+    );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await apiClient.getBlob(
+      "http://localhost:8081/api/v1/orders/order-1/items/item-1/image",
+      { accessToken: "access-token-1" },
+    );
+
+    expect(result.type).toBe("image/jpeg");
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(
+      "http://localhost:8081/api/v1/orders/order-1/items/item-1/image",
+    );
+    expect(init.method).toBe("GET");
+    expect((init.headers as Headers).get("Accept")).toBe("image/*");
+    expect((init.headers as Headers).get("Authorization")).toBe(
+      "Bearer access-token-1",
+    );
+  });
+
   it("converts ApiResponse error into ApiError with requestId", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       jsonResponse(
