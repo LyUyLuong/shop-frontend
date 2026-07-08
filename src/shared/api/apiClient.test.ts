@@ -1,4 +1,4 @@
-﻿import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { authSessionExpiredEventName } from "../auth/authEvents";
 import { ApiError } from "./apiError";
 import { apiClient } from "./apiClient";
@@ -6,6 +6,11 @@ import { apiClient } from "./apiClient";
 describe("apiClient", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.stubEnv("VITE_API_BASE_URL", "http://localhost:8081/api/v1");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("unwraps successful ApiResponse data", async () => {
