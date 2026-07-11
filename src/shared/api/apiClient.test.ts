@@ -3,14 +3,19 @@ import { authSessionExpiredEventName } from "../auth/authEvents";
 import { ApiError } from "./apiError";
 import { apiClient } from "./apiClient";
 
+vi.mock("../config/env", () => ({
+  env: {
+    apiBaseUrl: "http://localhost:8081/api/v1",
+  },
+}));
+
 describe("apiClient", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    vi.stubEnv("VITE_API_BASE_URL", "http://localhost:8081/api/v1");
   });
 
   afterEach(() => {
-    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
   });
 
   it("unwraps successful ApiResponse data", async () => {
