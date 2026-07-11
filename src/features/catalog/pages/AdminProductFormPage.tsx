@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { isApiError } from "../../../shared/api/apiError";
 import { formatVnd, shortId } from "../../../shared/utils/format";
@@ -8,7 +8,10 @@ import {
   useUpdateProduct,
   useUploadProductImage,
 } from "../api/catalogQueries";
-import type { UpsertProductRequest } from "../api/catalogTypes";
+import type {
+  ProductResponse,
+  UpsertProductRequest,
+} from "../api/catalogTypes";
 import { productImageSrc } from "../utils/productImage";
 
 type FormState = {
@@ -17,6 +20,11 @@ type FormState = {
   description: string;
   price: string;
   stockQuantity: string;
+};
+
+type SelectedImage = {
+  file: File;
+  previewUrl: string;
 };
 
 const initialForm: FormState = {
@@ -37,43 +45,21 @@ export function AdminProductFormPage() {
   const updateProduct = useUpdateProduct();
   const uploadImage = useUploadProductImage();
 
-  const [form, setForm] = useState<FormState>(initialForm);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [selectedFilePreviewUrl, setSelectedFilePreviewUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedImage, setSelectedImage] = useState<SelectedImage | null>(null);
+  const selectedFilePreviewUrl = selectedImage?.previewUrl ?? null;
 
   useEffect(() => {
-    if (!productQuery.data) {
+    if (!selectedFilePreviewUrl) {
       return;
     }
 
-    setForm({
-      sku: productQuery.data.sku,
-      name: productQuery.data.name,
-      description: productQuery.data.description ?? "",
-      price: String(productQuery.data.price),
-      stockQuantity: String(productQuery.data.stockQuantity),
-    });
-  }, [productQuery.data]);
-
-  useEffect(() => {
-    if (!selectedFile) {
-      setSelectedFilePreviewUrl(null);
-      return;
-    }
-
-    const previewUrl = URL.createObjectURL(selectedFile);
-    setSelectedFilePreviewUrl(previewUrl);
-
-    return () => URL.revokeObjectURL(previewUrl);
-  }, [selectedFile]);
+    return () => URL.revokeObjectURL(selectedFilePreviewUrl);
+  }, [selectedFilePreviewUrl]);
 
   const mutationError = createProduct.error ?? updateProduct.error ?? uploadImage.error;
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    const request = toRequest(form);
-
+  async function saveProduct(request: UpsertProductRequest) {
     if (isEditMode && productId) {
       const product = await updateProduct.mutateAsync({ productId, request });
       navigate(`/admin/products/${product.id}`);
@@ -84,17 +70,35 @@ export function AdminProductFormPage() {
     navigate(`/admin/products/${product.id}`);
   }
 
+  function selectImage(file: File | null) {
+    setSelectedImage(
+      file
+        ? {
+            file,
+            previewUrl: URL.createObjectURL(file),
+          }
+        : null,
+    );
+  }
+
   async function handleUploadImage() {
-    if (!productId || !selectedFile) {
+    if (!productId || !selectedImage) {
       return;
     }
 
-    await uploadImage.mutateAsync({
-      productId,
-      file: selectedFile,
-    });
+    try {
+      await uploadImage.mutateAsync({
+        productId,
+        file: selectedImage.file,
+      });
 
-    setSelectedFile(null);
+      setSelectedImage(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    } catch {
+      return;
+    }
   }
 
   if (isEditMode && productQuery.isLoading) {
@@ -117,7 +121,6 @@ export function AdminProductFormPage() {
   const imageSrc = product ? productImageSrc(product) : undefined;
   const isSaving = createProduct.isPending || updateProduct.isPending;
   const isUploading = uploadImage.isPending;
-  const previewPrice = Number(form.price);
 
   return (
     <section className="space-y-5">
@@ -158,79 +161,13 @@ export function AdminProductFormPage() {
           </div>
         )}
 
-        <form className="mt-6 grid gap-4" onSubmit={handleSubmit}>
-          <label className="block text-sm font-medium text-slate-700">
-            SKU
-            <input
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
-              value={form.sku}
-              onChange={(event) => setForm((current) => ({ ...current, sku: event.target.value }))}
-            />
-          </label>
-
-          <label className="block text-sm font-medium text-slate-700">
-            Product name
-            <input
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
-              value={form.name}
-              onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-            />
-          </label>
-
-          <label className="block text-sm font-medium text-slate-700">
-            Description
-            <textarea
-              className="mt-1 min-h-28 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
-              value={form.description}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, description: event.target.value }))
-              }
-            />
-          </label>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block text-sm font-medium text-slate-700">
-              Price
-              <input
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
-                min="0"
-                step="0.01"
-                type="number"
-                value={form.price}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, price: event.target.value }))
-                }
-              />
-              {!Number.isNaN(previewPrice) && previewPrice > 0 && (
-                <span className="mt-1 block text-xs text-slate-500">
-                  Displayed as {formatVnd(previewPrice)}
-                </span>
-              )}
-            </label>
-
-            <label className="block text-sm font-medium text-slate-700">
-              Stock quantity
-              <input
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
-                min="0"
-                step="1"
-                type="number"
-                value={form.stockQuantity}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, stockQuantity: event.target.value }))
-                }
-              />
-            </label>
-          </div>
-
-          <button
-            className="w-fit rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:bg-slate-300"
-            type="submit"
-            disabled={isSaving}
-          >
-            {isSaving ? "Saving..." : isEditMode ? "Save changes" : "Create product"}
-          </button>
-        </form>
+        <ProductDetailsForm
+          key={product?.id ?? "new-product"}
+          initialValue={product ? toFormState(product) : initialForm}
+          isEditMode={isEditMode}
+          isSaving={isSaving}
+          onSubmit={saveProduct}
+        />
       </div>
 
       {isEditMode && productId && (
@@ -242,27 +179,36 @@ export function AdminProductFormPage() {
           </p>
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <ImagePreview label="Current image" imageSrc={imageSrc} alt={product?.name ?? "Product image"} />
+            <ImagePreview
+              label="Current image"
+              imageSrc={imageSrc}
+              alt={product?.name ?? "Product image"}
+            />
             <ImagePreview
               label="Selected image preview"
               imageSrc={selectedFilePreviewUrl ?? undefined}
               alt="Selected product image preview"
-              helper={selectedFile ? `${selectedFile.name} - ${formatFileSize(selectedFile.size)}` : undefined}
+              helper={
+                selectedImage
+                  ? `${selectedImage.file.name} - ${formatFileSize(selectedImage.file.size)}`
+                  : undefined
+              }
             />
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <input
+              ref={fileInputRef}
               accept="image/jpeg,image/png,image/webp"
               className="text-sm"
               type="file"
-              onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+              onChange={(event) => selectImage(event.target.files?.[0] ?? null)}
             />
 
             <button
               className="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:bg-slate-300"
               type="button"
-              disabled={!selectedFile || isUploading}
+              disabled={!selectedImage || isUploading}
               onClick={handleUploadImage}
             >
               {isUploading ? "Uploading..." : "Upload image"}
@@ -271,6 +217,120 @@ export function AdminProductFormPage() {
         </div>
       )}
     </section>
+  );
+}
+
+type ProductDetailsFormProps = {
+  initialValue: FormState;
+  isEditMode: boolean;
+  isSaving: boolean;
+  onSubmit: (request: UpsertProductRequest) => Promise<void>;
+};
+
+function ProductDetailsForm({
+  initialValue,
+  isEditMode,
+  isSaving,
+  onSubmit,
+}: ProductDetailsFormProps) {
+  const [form, setForm] = useState<FormState>(initialValue);
+  const previewPrice = Number(form.price);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    try {
+      await onSubmit(toRequest(form));
+    } catch {
+      return;
+    }
+  }
+
+  return (
+    <form className="mt-6 grid gap-4" onSubmit={handleSubmit}>
+      <label className="block text-sm font-medium text-slate-700">
+        SKU
+        <input
+          required
+          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+          value={form.sku}
+          onChange={(event) =>
+            setForm((current) => ({ ...current, sku: event.target.value }))
+          }
+        />
+      </label>
+
+      <label className="block text-sm font-medium text-slate-700">
+        Product name
+        <input
+          required
+          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+          value={form.name}
+          onChange={(event) =>
+            setForm((current) => ({ ...current, name: event.target.value }))
+          }
+        />
+      </label>
+
+      <label className="block text-sm font-medium text-slate-700">
+        Description
+        <textarea
+          className="mt-1 min-h-28 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+          value={form.description}
+          onChange={(event) =>
+            setForm((current) => ({ ...current, description: event.target.value }))
+          }
+        />
+      </label>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="block text-sm font-medium text-slate-700">
+          Price
+          <input
+            required
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+            min="0"
+            step="0.01"
+            type="number"
+            value={form.price}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, price: event.target.value }))
+            }
+          />
+          {!Number.isNaN(previewPrice) && previewPrice > 0 && (
+            <span className="mt-1 block text-xs text-slate-500">
+              Displayed as {formatVnd(previewPrice)}
+            </span>
+          )}
+        </label>
+
+        <label className="block text-sm font-medium text-slate-700">
+          Stock quantity
+          <input
+            required
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+            min="0"
+            step="1"
+            type="number"
+            value={form.stockQuantity}
+            onChange={(event) =>
+              setForm((current) => ({
+                ...current,
+                stockQuantity: event.target.value,
+              }))
+            }
+          />
+        </label>
+      </div>
+
+      <button
+        className="w-fit rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:bg-slate-300"
+        type="submit"
+        disabled={isSaving}
+      >
+        {isSaving ? "Saving..." : isEditMode ? "Save changes" : "Create product"}
+      </button>
+    </form>
   );
 }
 
@@ -308,6 +368,16 @@ function formatFileSize(size: number): string {
   }
 
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function toFormState(product: ProductResponse): FormState {
+  return {
+    sku: product.sku,
+    name: product.name,
+    description: product.description ?? "",
+    price: String(product.price),
+    stockQuantity: String(product.stockQuantity),
+  };
 }
 
 function toRequest(form: FormState): UpsertProductRequest {

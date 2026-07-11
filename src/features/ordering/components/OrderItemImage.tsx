@@ -9,19 +9,38 @@ type OrderItemImageProps = {
 
 export function OrderItemImage({ imageUrl, alt }: OrderItemImageProps) {
   const { accessToken } = useAuth();
+
+  if (!imageUrl || !accessToken) {
+    return <ImagePlaceholder label="No image" />;
+  }
+
+  return (
+    <OrderItemImageLoader
+      key={imageUrl}
+      accessToken={accessToken}
+      alt={alt}
+      imageUrl={imageUrl}
+    />
+  );
+}
+
+type OrderItemImageLoaderProps = {
+  accessToken: string;
+  alt: string;
+  imageUrl: string;
+};
+
+function OrderItemImageLoader({
+  accessToken,
+  alt,
+  imageUrl,
+}: OrderItemImageLoaderProps) {
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
     let isActive = true;
     let createdObjectUrl: string | null = null;
-
-    setObjectUrl(null);
-    setHasError(false);
-
-    if (!imageUrl || !accessToken) {
-      return;
-    }
 
     apiClient
       .getBlob(imageUrl, { accessToken })
@@ -51,7 +70,7 @@ export function OrderItemImage({ imageUrl, alt }: OrderItemImageProps) {
     };
   }, [accessToken, imageUrl]);
 
-  if (!imageUrl || hasError) {
+  if (hasError) {
     return <ImagePlaceholder label="No image" />;
   }
 

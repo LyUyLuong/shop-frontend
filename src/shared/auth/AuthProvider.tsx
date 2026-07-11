@@ -1,13 +1,17 @@
-﻿import {
-  createContext,
+import {
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
 import { subscribeAuthSessionExpired } from "./authEvents";
+import {
+  AuthContext,
+  type AuthContextValue,
+  type AuthSessionInput,
+  type AuthUser,
+} from "./authStore";
 import {
   clearAccessToken,
   clearAuthSession,
@@ -17,29 +21,6 @@ import {
   saveAuthSession,
   type StoredAuthSession,
 } from "./tokenStorage";
-
-export type AuthUser = {
-  userId: string;
-  email: string;
-  name: string;
-  roles: string[];
-};
-
-export type AuthSessionInput = StoredAuthSession & {
-  accessToken: string;
-};
-
-export type AuthContextValue = {
-  user: AuthUser | null;
-  accessToken: string | null;
-  isAuthenticated: boolean;
-  isAdmin: boolean;
-  hasRole: (role: string) => boolean;
-  setAuthSession: (session: AuthSessionInput) => void;
-  logout: () => void;
-};
-
-const AuthContext = createContext<AuthContextValue | null>(null);
 
 type AuthProviderProps = {
   children: ReactNode;
@@ -113,14 +94,4 @@ export function AuthProvider({ children }: AuthProviderProps) {
   );
 
   return <AuthContext value={value}>{children}</AuthContext>;
-}
-
-export function useAuth(): AuthContextValue {
-  const value = useContext(AuthContext);
-
-  if (!value) {
-    throw new Error("useAuth must be used inside AuthProvider");
-  }
-
-  return value;
 }

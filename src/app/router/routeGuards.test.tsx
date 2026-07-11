@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { authSessionExpiredEventName } from "../../shared/auth/authEvents";
-import { AuthProvider } from "../../shared/auth/authStore";
+import { AuthProvider } from "../../shared/auth/AuthProvider";
 import {
   readAccessToken,
   saveAccessToken,
