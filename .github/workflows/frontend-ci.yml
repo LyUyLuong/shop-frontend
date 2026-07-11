@@ -107,6 +107,11 @@ jobs:
     if: >-
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+
+    environment:
+      name: production-frontend
+      url: ${{ vars.FRONTEND_BASE_URL }}
+
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
