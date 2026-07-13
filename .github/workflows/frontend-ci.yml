@@ -8,6 +8,15 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      asset_retention_mode:
+        description: Plan cleanup only, or apply a guarded soft delete after deployment
+        required: true
+        default: dry-run
+        type: choice
+        options:
+          - dry-run
+          - apply
 
 permissions:
   contents: read
@@ -74,6 +83,21 @@ jobs:
       - name: Build frontend
         run: npm run build
 
+      - name: Generate release asset manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          node scripts/deployment/create-release-manifest.mjs \
+            --asset-directory dist/assets \
+            --output dist/deployment/release-manifest.json \
+            --release-id "${GITHUB_SHA}" \
+            --commit-sha "${GITHUB_SHA}" \
+            --created-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --source-ref "${GITHUB_REF}" \
+            --run-id "${GITHUB_RUN_ID}" \
+            --run-attempt "${GITHUB_RUN_ATTEMPT}"
+
       - name: Verify production bundle
         shell: bash
         run: |
@@ -81,6 +105,11 @@ jobs:
 
           test -f dist/index.html
           test -d dist/assets
+          test -f dist/deployment/release-manifest.json
+
+          node scripts/deployment/validate-release-manifest.mjs \
+            --manifest dist/deployment/release-manifest.json \
+            --expected-release-id "${GITHUB_SHA}"
 
           if grep -R --binary-files=without-match --fixed-strings \
             "http://localhost:8081" dist; then
@@ -129,8 +158,24 @@ jobs:
       FRONTEND_S3_BUCKET: ${{ vars.FRONTEND_S3_BUCKET }}
       CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}
       FRONTEND_BASE_URL: ${{ vars.FRONTEND_BASE_URL }}
+      ASSET_RETENTION_MODE: ${{ (github.event_name == 'workflow_dispatch' && inputs.asset_retention_mode) || vars.FRONTEND_ASSET_RETENTION_MODE || 'dry-run' }}
+      ASSET_RETENTION_KEEP_RELEASES: ${{ vars.FRONTEND_ASSET_RETENTION_KEEP_RELEASES || '3' }}
+      ASSET_RETENTION_MINIMUM_AGE_HOURS: ${{ vars.FRONTEND_ASSET_RETENTION_MINIMUM_AGE_HOURS || '168' }}
+      ASSET_RETENTION_MAXIMUM_DELETE_COUNT: ${{ vars.FRONTEND_ASSET_RETENTION_MAXIMUM_DELETE_COUNT || '25' }}
 
     steps:
+      - name: Checkout deployment scripts
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js for deployment scripts
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
       - name: Download verified frontend artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -148,7 +193,11 @@ jobs:
             FRONTEND_DEPLOY_ROLE_ARN \
             FRONTEND_S3_BUCKET \
             CLOUDFRONT_DISTRIBUTION_ID \
-            FRONTEND_BASE_URL
+            FRONTEND_BASE_URL \
+            ASSET_RETENTION_MODE \
+            ASSET_RETENTION_KEEP_RELEASES \
+            ASSET_RETENTION_MINIMUM_AGE_HOURS \
+            ASSET_RETENTION_MAXIMUM_DELETE_COUNT
           do
             if [[ -z "${!variable:-}" ]]; then
               echo "::error::Missing repository variable ${variable}"
@@ -166,8 +215,44 @@ jobs:
             exit 1
           fi
 
+          case "${ASSET_RETENTION_MODE}" in
+            dry-run|apply)
+              ;;
+            *)
+              echo "::error::ASSET_RETENTION_MODE must be dry-run or apply"
+              exit 1
+              ;;
+          esac
+
+          for variable in \
+            ASSET_RETENTION_KEEP_RELEASES \
+            ASSET_RETENTION_MINIMUM_AGE_HOURS \
+            ASSET_RETENTION_MAXIMUM_DELETE_COUNT
+          do
+            if [[ ! "${!variable}" =~ ^[0-9]+$ ]]; then
+              echo "::error::${variable} must be a non-negative integer"
+              exit 1
+            fi
+          done
+
+          if (( ASSET_RETENTION_KEEP_RELEASES < 1 )); then
+            echo "::error::ASSET_RETENTION_KEEP_RELEASES must be at least 1"
+            exit 1
+          fi
+
+          if (( ASSET_RETENTION_MAXIMUM_DELETE_COUNT < 1 )); then
+            echo "::error::ASSET_RETENTION_MAXIMUM_DELETE_COUNT must be at least 1"
+            exit 1
+          fi
+
           test -f dist/index.html
           test -d dist/assets
+          test -f dist/deployment/release-manifest.json
+
+          node scripts/deployment/validate-release-manifest.mjs \
+            --manifest dist/deployment/release-manifest.json \
+            --expected-release-id "${GITHUB_SHA}"
+
           find dist -maxdepth 2 -type f -print
 
       - name: Configure temporary AWS credentials
@@ -197,6 +282,98 @@ jobs:
               ;;
           esac
 
+      - name: Verify S3 recovery guard
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          command -v jq >/dev/null
+          mkdir -p retention/recovery
+
+          VERSIONING_STATUS="$(
+            aws s3api get-bucket-versioning \
+              --bucket "${FRONTEND_S3_BUCKET}" \
+              --query "Status" \
+              --output text
+          )"
+
+          if [[ "${VERSIONING_STATUS}" != "Enabled" ]]; then
+            echo "::error::Frontend bucket versioning must be Enabled before retention can run"
+            exit 1
+          fi
+
+          aws s3api get-bucket-lifecycle-configuration \
+            --bucket "${FRONTEND_S3_BUCKET}" \
+            --output json \
+            > retention/recovery/lifecycle.json
+
+          jq -e '
+            any(
+              .Rules[]?;
+              .ID == "FrontendBucketRecoveryWindow" and
+              .Status == "Enabled" and
+              (.NoncurrentVersionExpiration.NoncurrentDays >= 30) and
+              (.AbortIncompleteMultipartUpload.DaysAfterInitiation <= 7) and
+              (.Expiration.ExpiredObjectDeleteMarker == true)
+            )
+          ' retention/recovery/lifecycle.json >/dev/null
+
+          printf '{"versioningStatus":"%s"}\n' "${VERSIONING_STATUS}" \
+            > retention/recovery/versioning.json
+
+      - name: Bootstrap pre-retention assets once
+        id: bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          command -v jq >/dev/null
+          mkdir -p retention/bootstrap
+
+          aws s3api list-objects-v2 \
+            --bucket "${FRONTEND_S3_BUCKET}" \
+            --prefix "assets/" \
+            --output json \
+            > retention/bootstrap/predeploy-assets.json
+
+          aws s3api list-objects-v2 \
+            --bucket "${FRONTEND_S3_BUCKET}" \
+            --prefix "_deployments/releases/" \
+            --output json \
+            > retention/bootstrap/existing-manifests.json
+
+          ASSET_COUNT="$(jq '(.Contents // []) | length' retention/bootstrap/predeploy-assets.json)"
+          MANIFEST_COUNT="$(jq '(.Contents // []) | length' retention/bootstrap/existing-manifests.json)"
+
+          echo "predeploy-asset-count=${ASSET_COUNT}" >> "${GITHUB_OUTPUT}"
+          echo "existing-manifest-count=${MANIFEST_COUNT}" >> "${GITHUB_OUTPUT}"
+
+          if (( MANIFEST_COUNT == 0 && ASSET_COUNT > 0 )); then
+            BOOTSTRAP_TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+            BOOTSTRAP_CREATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            BOOTSTRAP_RELEASE_ID="bootstrap-${BOOTSTRAP_TIMESTAMP}-${GITHUB_RUN_ID}"
+            BOOTSTRAP_FILE="retention/bootstrap/${BOOTSTRAP_RELEASE_ID}.json"
+
+            node scripts/deployment/create-bootstrap-manifest.mjs \
+              --inventory retention/bootstrap/predeploy-assets.json \
+              --output "${BOOTSTRAP_FILE}" \
+              --release-id "${BOOTSTRAP_RELEASE_ID}" \
+              --created-at "${BOOTSTRAP_CREATED_AT}"
+
+            aws s3 cp \
+              "${BOOTSTRAP_FILE}" \
+              "s3://${FRONTEND_S3_BUCKET}/_deployments/releases/${BOOTSTRAP_RELEASE_ID}.json" \
+              --content-type "application/json" \
+              --cache-control "no-store" \
+              --only-show-errors
+
+            echo "created=true" >> "${GITHUB_OUTPUT}"
+            echo "release-id=${BOOTSTRAP_RELEASE_ID}" >> "${GITHUB_OUTPUT}"
+          else
+            echo "created=false" >> "${GITHUB_OUTPUT}"
+            echo "release-id=" >> "${GITHUB_OUTPUT}"
+          fi
+
       - name: Upload immutable hashed assets
         shell: bash
         run: |
@@ -219,6 +396,7 @@ jobs:
             "s3://${FRONTEND_S3_BUCKET}/" \
             --recursive \
             --exclude "assets/*" \
+            --exclude "deployment/*" \
             --exclude "index.html" \
             --cache-control "public,max-age=300,must-revalidate" \
             --only-show-errors
@@ -255,10 +433,14 @@ jobs:
             --distribution-id "${CLOUDFRONT_DISTRIBUTION_ID}" \
             --id "${INVALIDATION_ID}"
 
-      - name: Smoke test deployed frontend and API
+      - name: Smoke test every deployed asset and the API
+        id: smoke
         shell: bash
         run: |
           set -euo pipefail
+
+          command -v jq >/dev/null
+          command -v sha256sum >/dev/null
 
           EXPECTED_ASSET="$(
             grep -oE '/assets/[^"]+\.js' dist/index.html |
@@ -285,15 +467,43 @@ jobs:
             rm -f "${RESPONSE_FILE}"
           done
 
-          curl \
-            --fail \
-            --silent \
-            --show-error \
-            --retry 5 \
-            --retry-delay 3 \
-            --retry-all-errors \
-            "${FRONTEND_BASE_URL}${EXPECTED_ASSET}" \
-            --output /dev/null
+          ASSET_COUNT=0
+
+          while IFS=$'\t' read -r ASSET_KEY EXPECTED_SHA256
+          do
+            ASSET_FILE="$(mktemp)"
+
+            curl \
+              --fail \
+              --silent \
+              --show-error \
+              --retry 5 \
+              --retry-delay 3 \
+              --retry-all-errors \
+              "${FRONTEND_BASE_URL}/${ASSET_KEY}" \
+              --output "${ASSET_FILE}"
+
+            ACTUAL_SHA256="$(sha256sum "${ASSET_FILE}" | awk '{print $1}')"
+            rm -f "${ASSET_FILE}"
+
+            if [[ "${ACTUAL_SHA256}" != "${EXPECTED_SHA256}" ]]; then
+              echo "::error::CloudFront asset digest mismatch for ${ASSET_KEY}"
+              exit 1
+            fi
+
+            ASSET_COUNT=$((ASSET_COUNT + 1))
+          done < <(
+            jq -r \
+              '.assets[] | [.key, .sha256] | @tsv' \
+              dist/deployment/release-manifest.json
+          )
+
+          if (( ASSET_COUNT == 0 )); then
+            echo "::error::Release manifest did not contain any assets"
+            exit 1
+          fi
+
+          echo "asset-count=${ASSET_COUNT}" >> "${GITHUB_OUTPUT}"
 
           API_RESPONSE="$(
             curl \
@@ -308,6 +518,177 @@ jobs:
 
           grep -Fq '"success":true' <<< "${API_RESPONSE}"
 
+      - name: Publish successful release manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          aws s3 cp \
+            dist/deployment/release-manifest.json \
+            "s3://${FRONTEND_S3_BUCKET}/_deployments/releases/${GITHUB_SHA}.json" \
+            --content-type "application/json" \
+            --cache-control "no-store" \
+            --only-show-errors
+
+      - name: Build guarded asset-retention plan
+        id: retention-plan
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          command -v jq >/dev/null
+          mkdir -p retention/manifests retention/plan
+
+          aws s3 sync \
+            "s3://${FRONTEND_S3_BUCKET}/_deployments/releases/" \
+            retention/manifests/ \
+            --exclude "*" \
+            --include "*.json" \
+            --only-show-errors
+
+          aws s3api list-objects-v2 \
+            --bucket "${FRONTEND_S3_BUCKET}" \
+            --prefix "assets/" \
+            --output json \
+            > retention/plan/current-assets.json
+
+          node scripts/deployment/plan-asset-retention.mjs \
+            --manifest-directory retention/manifests \
+            --inventory retention/plan/current-assets.json \
+            --output retention/plan/retention-plan.json \
+            --current-release-id "${GITHUB_SHA}" \
+            --keep-releases "${ASSET_RETENTION_KEEP_RELEASES}" \
+            --minimum-age-hours "${ASSET_RETENTION_MINIMUM_AGE_HOURS}" \
+            --maximum-delete-count "${ASSET_RETENTION_MAXIMUM_DELETE_COUNT}" \
+            --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          jq . retention/plan/retention-plan.json
+
+          SAFE_TO_APPLY="$(jq -r '.safeToApply' retention/plan/retention-plan.json)"
+          CANDIDATE_COUNT="$(jq '.candidates | length' retention/plan/retention-plan.json)"
+          DEFERRED_COUNT="$(jq '.deferred | length' retention/plan/retention-plan.json)"
+          PROTECTED_COUNT="$(jq '.protectedAssets | length' retention/plan/retention-plan.json)"
+          MANIFEST_COUNT="$(jq '.manifests.discoveredCount' retention/plan/retention-plan.json)"
+
+          echo "safe-to-apply=${SAFE_TO_APPLY}" >> "${GITHUB_OUTPUT}"
+          echo "candidate-count=${CANDIDATE_COUNT}" >> "${GITHUB_OUTPUT}"
+          echo "deferred-count=${DEFERRED_COUNT}" >> "${GITHUB_OUTPUT}"
+          echo "protected-count=${PROTECTED_COUNT}" >> "${GITHUB_OUTPUT}"
+          echo "manifest-count=${MANIFEST_COUNT}" >> "${GITHUB_OUTPUT}"
+
+          if [[ "${SAFE_TO_APPLY}" != "true" ]]; then
+            echo "::error::Asset-retention safety checks failed"
+            exit 1
+          fi
+
+      - name: Apply guarded asset retention
+        id: retention-apply
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          command -v jq >/dev/null
+          DELETION_LOG="retention/plan/deletions.ndjson"
+          CANDIDATE_COUNT="$(jq '.candidates | length' retention/plan/retention-plan.json)"
+          DELETED_COUNT=0
+
+          : > "${DELETION_LOG}"
+
+          if [[ "${ASSET_RETENTION_MODE}" == "apply" ]]; then
+            while IFS= read -r ASSET_KEY
+            do
+              if [[ ! "${ASSET_KEY}" =~ ^assets/[A-Za-z0-9][A-Za-z0-9._/-]*$ ]] || \
+                [[ "${ASSET_KEY}" == *".."* ]] || \
+                [[ "${ASSET_KEY}" == *"//"* ]]; then
+                echo "::error::Refusing unsafe asset key: ${ASSET_KEY}"
+                exit 1
+              fi
+
+              DELETE_RESPONSE="$(
+                aws s3api delete-object \
+                  --bucket "${FRONTEND_S3_BUCKET}" \
+                  --key "${ASSET_KEY}" \
+                  --output json
+              )"
+
+              if [[ "$(jq -r '.DeleteMarker // false' <<< "${DELETE_RESPONSE}")" != "true" ]]; then
+                echo "::error::S3 did not return a recoverable delete marker for ${ASSET_KEY}"
+                exit 1
+              fi
+
+              jq -cn \
+                --arg key "${ASSET_KEY}" \
+                --arg versionId "$(jq -r '.VersionId' <<< "${DELETE_RESPONSE}")" \
+                '{key: $key, deleteMarker: true, versionId: $versionId}' \
+                >> "${DELETION_LOG}"
+
+              DELETED_COUNT=$((DELETED_COUNT + 1))
+            done < <(jq -r '.candidates[].key' retention/plan/retention-plan.json)
+
+            if (( DELETED_COUNT != CANDIDATE_COUNT )); then
+              echo "::error::Deleted ${DELETED_COUNT} assets but planned ${CANDIDATE_COUNT}"
+              exit 1
+            fi
+          else
+            echo "Dry-run mode: ${CANDIDATE_COUNT} candidate assets were not deleted."
+          fi
+
+          echo "deleted-count=${DELETED_COUNT}" >> "${GITHUB_OUTPUT}"
+
+      - name: Verify protected assets after retention
+        id: retention-verify
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          aws s3api list-objects-v2 \
+            --bucket "${FRONTEND_S3_BUCKET}" \
+            --prefix "assets/" \
+            --output json \
+            > retention/plan/post-retention-assets.json
+
+          VERIFIED_COUNT=0
+
+          while IFS= read -r ASSET_KEY
+          do
+            if ! jq -e \
+              --arg key "${ASSET_KEY}" \
+              'any((.Contents // [])[]; .Key == $key)' \
+              retention/plan/post-retention-assets.json \
+              >/dev/null; then
+              echo "::error::Protected asset is missing from S3 after retention: ${ASSET_KEY}"
+              exit 1
+            fi
+
+            curl \
+              --fail \
+              --silent \
+              --show-error \
+              --retry 5 \
+              --retry-delay 3 \
+              --retry-all-errors \
+              "${FRONTEND_BASE_URL}/${ASSET_KEY}" \
+              --output /dev/null
+
+            VERIFIED_COUNT=$((VERIFIED_COUNT + 1))
+          done < <(jq -r '.protectedAssets[].key' retention/plan/retention-plan.json)
+
+          if (( VERIFIED_COUNT == 0 )); then
+            echo "::error::No protected assets were verified"
+            exit 1
+          fi
+
+          echo "verified-count=${VERIFIED_COUNT}" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload frontend retention evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: shop-frontend-retention-${{ github.sha }}-${{ github.run_attempt }}
+          path: retention/
+          if-no-files-found: warn
+          retention-days: 30
+
       - name: Write deployment summary
         shell: bash
         run: |
@@ -318,5 +699,13 @@ jobs:
             echo "- Bucket: \`${FRONTEND_S3_BUCKET}\`"
             echo "- URL: ${FRONTEND_BASE_URL}"
             echo "- CloudFront invalidation: \`${{ steps.invalidate.outputs.invalidation-id }}\`"
+            echo "- Current release assets verified by SHA-256: \`${{ steps.smoke.outputs.asset-count }}\`"
+            echo "- Bootstrap manifest created: \`${{ steps.bootstrap.outputs.created }}\`"
+            echo "- Release manifests discovered: \`${{ steps.retention-plan.outputs.manifest-count }}\`"
+            echo "- Protected asset keys verified after retention: \`${{ steps.retention-verify.outputs.verified-count }}\`"
+            echo "- Retention mode: \`${ASSET_RETENTION_MODE}\`"
+            echo "- Cleanup candidates: \`${{ steps.retention-plan.outputs.candidate-count }}\`"
+            echo "- Deferred by minimum age: \`${{ steps.retention-plan.outputs.deferred-count }}\`"
+            echo "- Soft-deleted with S3 delete markers: \`${{ steps.retention-apply.outputs.deleted-count }}\`"
             echo "- Result: success"
           } >> "${GITHUB_STEP_SUMMARY}"
