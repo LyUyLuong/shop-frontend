@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:deployment": "node --test scripts/deployment/retention-lib.test.mjs",
+    "test:run": "vitest run && npm run test:deployment"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.2",
