@@ -4,9 +4,11 @@ import type { PaymentResponse, PayMockPaymentRequest } from "./paymentTypes";
 export function payMock(
   accessToken: string,
   request: PayMockPaymentRequest,
+  idempotencyKey: string,
 ): Promise<PaymentResponse> {
   return apiClient.post<PaymentResponse>("/payments/mock", request, {
     accessToken,
+    headers: { "Idempotency-Key": idempotencyKey },
   });
 }
 

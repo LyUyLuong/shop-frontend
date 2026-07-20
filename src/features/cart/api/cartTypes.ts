@@ -1,6 +1,7 @@
 export type CartResponse = {
   id: string;
   userId: string;
+  version: number;
   items: CartItemResponse[];
   createdAt: string;
   updatedAt: string;

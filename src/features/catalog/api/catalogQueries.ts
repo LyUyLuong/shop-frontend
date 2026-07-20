@@ -13,6 +13,7 @@ import {
 import type {
   AdminProductSearchParams,
   ProductSearchParams,
+  UpdateProductRequest,
   UpsertProductRequest,
 } from "./catalogTypes";
 
@@ -82,7 +83,7 @@ export function useUpdateProduct() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (input: { productId: string; request: UpsertProductRequest }) =>
+    mutationFn: (input: { productId: string; request: UpdateProductRequest }) =>
       updateProduct(requireAccessToken(accessToken), input.productId, input.request),
     onSuccess: (product) => {
       queryClient.setQueryData(catalogQueryKeys.adminProduct(product.id), product);

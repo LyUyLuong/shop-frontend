@@ -1,4 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  payOrderOperationId,
+  runIdempotentOperation,
+} from "../../../shared/api/idempotency";
 import { useAuth } from "../../../shared/auth/authStore";
 import { orderingQueryKeys } from "../../ordering/api/orderingQueries";
 import { getPayment, payMock } from "./paymentApi";
@@ -24,8 +28,14 @@ export function usePayMockPayment() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (orderId: string) =>
-      payMock(requireAccessToken(accessToken), { orderId }),
+    mutationFn: (orderId: string) => {
+      const token = requireAccessToken(accessToken);
+
+      return runIdempotentOperation(
+        payOrderOperationId(orderId),
+        (idempotencyKey) => payMock(token, { orderId }, idempotencyKey),
+      );
+    },
     onSuccess: (payment) => {
       queryClient.setQueryData(paymentQueryKeys.payment(payment.id), payment);
       queryClient.invalidateQueries({ queryKey: orderingQueryKeys.orders() });

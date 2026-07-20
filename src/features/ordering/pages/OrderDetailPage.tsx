@@ -22,8 +22,12 @@ export function OrderDetailPage() {
       return;
     }
 
-    const payment = await payMock.mutateAsync(orderQuery.data.id);
-    navigate(`/payments/${payment.id}`);
+    try {
+      const payment = await payMock.mutateAsync(orderQuery.data.id);
+      navigate(`/payments/${payment.id}`);
+    } catch {
+      return;
+    }
   }
 
   if (orderQuery.isLoading) {
