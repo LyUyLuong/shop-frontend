@@ -1,4 +1,8 @@
 ﻿import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  placeOrderOperationId,
+  runIdempotentOperation,
+} from "../../../shared/api/idempotency";
 import { useAuth } from "../../../shared/auth/authStore";
 import { cartQueryKeys } from "../../cart/api/cartQueries";
 import {
@@ -13,6 +17,7 @@ import {
 import type {
   AdminOrderSearchParams,
   ChangeOrderStatusRequest,
+  PlaceOrderRequest,
 } from "./orderingTypes";
 
 export const orderingQueryKeys = {
@@ -83,7 +88,15 @@ export function usePlaceOrder() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: () => placeOrder(requireAccessToken(accessToken)),
+    mutationFn: (request: PlaceOrderRequest) => {
+      const token = requireAccessToken(accessToken);
+
+      return runIdempotentOperation(
+        placeOrderOperationId(request.cartId, request.cartVersion),
+        (idempotencyKey) =>
+          placeOrder(token, request, idempotencyKey),
+      );
+    },
     onSuccess: (order) => {
       queryClient.setQueryData(orderingQueryKeys.order(order.id), order);
       queryClient.invalidateQueries({ queryKey: orderingQueryKeys.orders() });

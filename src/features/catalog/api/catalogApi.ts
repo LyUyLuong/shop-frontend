@@ -4,6 +4,7 @@ import type {
   AdminProductSearchParams,
   ProductResponse,
   ProductSearchParams,
+  UpdateProductRequest,
   UpsertProductRequest,
 } from "./catalogTypes";
 
@@ -50,7 +51,7 @@ export function createProduct(
 export function updateProduct(
   accessToken: string,
   productId: string,
-  request: UpsertProductRequest,
+  request: UpdateProductRequest,
 ): Promise<ProductResponse> {
   return apiClient.put<ProductResponse>(`/admin/products/${productId}`, request, {
     accessToken,

@@ -19,8 +19,19 @@ export function CheckoutPage() {
   const error = placeOrder.error ?? payMock.error;
 
   async function handlePlaceOrder() {
-    const order = await placeOrder.mutateAsync();
-    setPlacedOrder(order);
+    if (!cart) {
+      return;
+    }
+
+    try {
+      const order = await placeOrder.mutateAsync({
+        cartId: cart.id,
+        cartVersion: cart.version,
+      });
+      setPlacedOrder(order);
+    } catch {
+      return;
+    }
   }
 
   async function handlePay() {
@@ -28,8 +39,12 @@ export function CheckoutPage() {
       return;
     }
 
-    const payment = await payMock.mutateAsync(placedOrder.id);
-    navigate(`/payments/${payment.id}`);
+    try {
+      const payment = await payMock.mutateAsync(placedOrder.id);
+      navigate(`/payments/${payment.id}`);
+    } catch {
+      return;
+    }
   }
 
   if (cartQuery.isLoading) {

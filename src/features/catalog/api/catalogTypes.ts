@@ -2,6 +2,7 @@ export type ProductStatus = "ACTIVE" | "INACTIVE";
 
 export type ProductResponse = {
   id: string;
+  version: number;
   sku: string;
   name: string;
   description?: string;
@@ -29,4 +30,8 @@ export type UpsertProductRequest = {
   description?: string;
   price: number;
   stockQuantity: number;
+};
+
+export type UpdateProductRequest = UpsertProductRequest & {
+  expectedVersion: number;
 };

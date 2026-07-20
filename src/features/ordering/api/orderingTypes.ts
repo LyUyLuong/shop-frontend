@@ -8,6 +8,11 @@
 
 export type OrderStatusChangeActorType = "ADMIN" | "SYSTEM";
 
+export type PlaceOrderRequest = {
+  cartId: string;
+  cartVersion: number;
+};
+
 export type OrderItemResponse = {
   id: string;
   productId: string;

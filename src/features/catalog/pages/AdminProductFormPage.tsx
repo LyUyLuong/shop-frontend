@@ -61,8 +61,20 @@ export function AdminProductFormPage() {
 
   async function saveProduct(request: UpsertProductRequest) {
     if (isEditMode && productId) {
-      const product = await updateProduct.mutateAsync({ productId, request });
-      navigate(`/admin/products/${product.id}`);
+      const currentProduct = productQuery.data;
+
+      if (!currentProduct) {
+        throw new Error("Product must be loaded before it can be updated.");
+      }
+
+      const savedProduct = await updateProduct.mutateAsync({
+        productId,
+        request: {
+          ...request,
+          expectedVersion: currentProduct.version,
+        },
+      });
+      navigate(`/admin/products/${savedProduct.id}`);
       return;
     }
 

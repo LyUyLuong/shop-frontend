@@ -7,10 +7,18 @@ import type {
   ChangeOrderStatusRequest,
   OrderResponse,
   OrderStatusHistoryResponse,
+  PlaceOrderRequest,
 } from "./orderingTypes";
 
-export function placeOrder(accessToken: string): Promise<OrderResponse> {
-  return apiClient.post<OrderResponse>("/orders", undefined, { accessToken });
+export function placeOrder(
+  accessToken: string,
+  request: PlaceOrderRequest,
+  idempotencyKey: string,
+): Promise<OrderResponse> {
+  return apiClient.post<OrderResponse>("/orders", request, {
+    accessToken,
+    headers: { "Idempotency-Key": idempotencyKey },
+  });
 }
 
 export function getOrders(accessToken: string): Promise<OrderResponse[]> {
