@@ -9,6 +9,15 @@ import {
 
 const firstUuid = "11111111-1111-4111-8111-111111111111";
 const secondUuid = "22222222-2222-4222-8222-222222222222";
+const placeOrderInput = {
+  cartId: "cart-1",
+  cartVersion: 4,
+  recipientName: "Nguyen Van A",
+  recipientPhone: "0901234567",
+  shippingAddress: "123 Nguyen Hue, District 1",
+  shippingMethod: "STANDARD",
+  paymentMode: "MOCK",
+};
 
 describe("idempotency operation keys", () => {
   beforeEach(() => {
@@ -22,13 +31,43 @@ describe("idempotency operation keys", () => {
       .mockReturnValueOnce(firstUuid)
       .mockReturnValueOnce(secondUuid);
 
-    const firstOperation = placeOrderOperationId("cart-1", 4);
-    const nextOperation = placeOrderOperationId("cart-1", 5);
+    const firstOperation = placeOrderOperationId(placeOrderInput);
+    const nextOperation = placeOrderOperationId({
+      ...placeOrderInput,
+      cartVersion: 5,
+    });
 
     expect(getOrCreateIdempotencyKey(firstOperation)).toBe(firstUuid);
     expect(getOrCreateIdempotencyKey(firstOperation)).toBe(firstUuid);
     expect(getOrCreateIdempotencyKey(nextOperation)).toBe(secondUuid);
     expect(randomUuid).toHaveBeenCalledTimes(2);
+  });
+
+  it("canonicalizes equivalent fulfillment values into one operation identity", () => {
+    const firstOperation = placeOrderOperationId({
+      ...placeOrderInput,
+      recipientName: "  Nguyen   Van A ",
+      recipientPhone: "090-123 4567",
+      shippingAddress: "  123   Nguyen Hue,   District 1 ",
+    });
+    const secondOperation = placeOrderOperationId(placeOrderInput);
+
+    expect(firstOperation).toBe(secondOperation);
+  });
+
+  it("changes the operation identity when checkout fulfillment changes", () => {
+    const originalOperation = placeOrderOperationId(placeOrderInput);
+    const changedAddressOperation = placeOrderOperationId({
+      ...placeOrderInput,
+      shippingAddress: "456 Le Loi, District 1",
+    });
+    const changedModeOperation = placeOrderOperationId({
+      ...placeOrderInput,
+      paymentMode: "COD",
+    });
+
+    expect(changedAddressOperation).not.toBe(originalOperation);
+    expect(changedModeOperation).not.toBe(originalOperation);
   });
 
   it("uses the order id as the payment operation identity", () => {
@@ -55,7 +94,7 @@ describe("idempotency operation keys", () => {
   it("retains the key after an ambiguous network failure", async () => {
     vi.spyOn(crypto, "randomUUID").mockReturnValue(firstUuid);
 
-    const operationId = placeOrderOperationId("cart-1", 4);
+    const operationId = placeOrderOperationId(placeOrderInput);
     const observedKeys: string[] = [];
 
     await expect(
@@ -93,7 +132,7 @@ describe("idempotency operation keys", () => {
       .mockReturnValueOnce(firstUuid)
       .mockReturnValueOnce(secondUuid);
 
-    const operationId = placeOrderOperationId("cart-1", 4);
+    const operationId = placeOrderOperationId(placeOrderInput);
     const conflict = new ApiError({ status: 409, code: "COMMON_005" });
 
     await expect(

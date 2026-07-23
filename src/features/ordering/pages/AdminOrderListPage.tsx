@@ -14,11 +14,13 @@ const pageSize = 20;
 const statusOptions: Array<OrderStatus | ""> = [
   "",
   "PENDING_PAYMENT",
+  "CONFIRMED",
   "PAID",
   "PACKING",
   "SHIPPED",
   "COMPLETED",
   "CANCELLED",
+  "EXPIRED",
 ];
 
 export function AdminOrderListPage() {

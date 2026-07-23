@@ -92,7 +92,7 @@ export function usePlaceOrder() {
       const token = requireAccessToken(accessToken);
 
       return runIdempotentOperation(
-        placeOrderOperationId(request.cartId, request.cartVersion),
+        placeOrderOperationId(request),
         (idempotencyKey) =>
           placeOrder(token, request, idempotencyKey),
       );

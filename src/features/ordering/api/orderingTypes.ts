@@ -1,16 +1,27 @@
 ﻿export type OrderStatus =
   | "PENDING_PAYMENT"
+  | "CONFIRMED"
   | "PAID"
   | "PACKING"
   | "SHIPPED"
   | "COMPLETED"
-  | "CANCELLED";
+  | "CANCELLED"
+  | "EXPIRED";
 
 export type OrderStatusChangeActorType = "ADMIN" | "SYSTEM";
+
+export type ShippingMethod = "STANDARD";
+
+export type OrderPaymentMode = "MOCK" | "COD";
 
 export type PlaceOrderRequest = {
   cartId: string;
   cartVersion: number;
+  recipientName: string;
+  recipientPhone: string;
+  shippingAddress: string;
+  shippingMethod: ShippingMethod;
+  paymentMode: OrderPaymentMode;
 };
 
 export type OrderItemResponse = {
@@ -24,11 +35,22 @@ export type OrderItemResponse = {
   lineTotal: number;
 };
 
+export type OrderFulfillmentResponse = {
+  recipientName: string;
+  recipientPhone: string;
+  shippingAddress: string;
+  shippingMethod: ShippingMethod;
+};
+
 export type OrderResponse = {
   id: string;
   userId: string;
   status: OrderStatus;
+  paymentMode?: OrderPaymentMode;
+  subtotalAmount?: number;
+  shippingFee?: number;
   totalAmount: number;
+  fulfillment?: OrderFulfillmentResponse | null;
   items: OrderItemResponse[];
   createdAt: string;
   updatedAt: string;
@@ -48,7 +70,11 @@ export type AdminOrderDetailResponse = {
   id: string;
   userId: string;
   status: OrderStatus;
+  paymentMode?: OrderPaymentMode;
+  subtotalAmount?: number;
+  shippingFee?: number;
   totalAmount: number;
+  fulfillment?: OrderFulfillmentResponse | null;
   items: OrderItemResponse[];
   createdAt: string;
   updatedAt: string;
