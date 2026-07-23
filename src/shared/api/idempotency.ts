@@ -5,11 +5,30 @@ const generatedKeyPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const volatileKeys = new Map<string, string>();
 
+export type PlaceOrderOperationInput = {
+  cartId: string;
+  cartVersion: number;
+  recipientName: string;
+  recipientPhone: string;
+  shippingAddress: string;
+  shippingMethod: string;
+  paymentMode: string;
+};
+
 export function placeOrderOperationId(
-  cartId: string,
-  cartVersion: number,
+  request: PlaceOrderOperationInput,
 ): string {
-  return `place-order:${cartId}:${cartVersion}`;
+  const canonicalSnapshot = [
+    request.cartId.toLowerCase(),
+    request.cartVersion,
+    canonicalizeText(request.recipientName),
+    canonicalizePhone(request.recipientPhone),
+    canonicalizeText(request.shippingAddress),
+    request.shippingMethod,
+    request.paymentMode,
+  ];
+
+  return `place-order:v2:${JSON.stringify(canonicalSnapshot)}`;
 }
 
 export function payOrderOperationId(orderId: string): string {
@@ -96,4 +115,12 @@ function writeKey(operationId: string, idempotencyKey: string): void {
 
 function toStorageKey(operationId: string): string {
   return `${storagePrefix}:${operationId}`;
+}
+
+function canonicalizeText(value: string): string {
+  return value.trim().replace(/\s+/gu, " ");
+}
+
+function canonicalizePhone(value: string): string {
+  return value.trim().replace(/[\s().-]+/gu, "");
 }

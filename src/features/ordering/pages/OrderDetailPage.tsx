@@ -77,6 +77,13 @@ export function OrderDetailPage() {
             <p className="mt-1 text-2xl font-semibold text-slate-950">
               {formatVnd(order.totalAmount)}
             </p>
+            {order.subtotalAmount !== undefined && (
+              <p className="mt-2 text-xs text-slate-500">
+                Subtotal {formatVnd(order.subtotalAmount)}
+                {order.shippingFee !== undefined &&
+                  ` + shipping ${formatVnd(order.shippingFee)}`}
+              </p>
+            )}
           </div>
         </div>
 
@@ -99,6 +106,39 @@ export function OrderDetailPage() {
           </button>
         )}
       </div>
+
+      {order.fulfillment && (
+        <div className="grid gap-5 border-y border-slate-200 bg-white px-6 py-5 sm:grid-cols-2">
+          <div>
+            <h2 className="font-semibold text-slate-950">Delivery</h2>
+            <p className="mt-3 text-sm font-medium text-slate-800">
+              {order.fulfillment.recipientName}
+            </p>
+            <p className="mt-1 text-sm text-slate-600">
+              {order.fulfillment.recipientPhone}
+            </p>
+            <p className="mt-1 whitespace-pre-line text-sm text-slate-600">
+              {order.fulfillment.shippingAddress}
+            </p>
+          </div>
+
+          <div>
+            <h2 className="font-semibold text-slate-950">Order method</h2>
+            <dl className="mt-3 space-y-2 text-sm">
+              <DetailRow
+                label="Shipping"
+                value={humanizeValue(order.fulfillment.shippingMethod)}
+              />
+              {order.paymentMode && (
+                <DetailRow
+                  label="Payment"
+                  value={humanizeValue(order.paymentMode)}
+                />
+              )}
+            </dl>
+          </div>
+        </div>
+      )}
 
       <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-100 px-4 py-3">
@@ -143,4 +183,20 @@ function Panel({ children }: { children: React.ReactNode }) {
       {children}
     </section>
   );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between gap-4">
+      <dt className="text-slate-500">{label}</dt>
+      <dd className="font-medium text-slate-800">{value}</dd>
+    </div>
+  );
+}
+
+function humanizeValue(value: string): string {
+  return value
+    .split("_")
+    .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
+    .join(" ");
 }

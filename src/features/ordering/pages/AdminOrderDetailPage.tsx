@@ -93,8 +93,44 @@ export function AdminOrderDetailPage() {
             <p className="mt-3 text-2xl font-semibold text-slate-950">
               {formatVnd(order.totalAmount)}
             </p>
+            {order.subtotalAmount !== undefined && (
+              <p className="mt-2 text-xs text-slate-500">
+                Subtotal {formatVnd(order.subtotalAmount)}
+                {order.shippingFee !== undefined &&
+                  ` + shipping ${formatVnd(order.shippingFee)}`}
+              </p>
+            )}
           </div>
         </div>
+
+        {order.fulfillment && (
+          <div className="mt-5 grid gap-4 border-y border-slate-200 py-4 text-sm sm:grid-cols-2">
+            <div>
+              <p className="font-medium text-slate-500">Recipient</p>
+              <p className="mt-1 font-semibold text-slate-900">
+                {order.fulfillment.recipientName}
+              </p>
+              <p className="mt-1 text-slate-600">
+                {order.fulfillment.recipientPhone}
+              </p>
+              <p className="mt-1 whitespace-pre-line text-slate-600">
+                {order.fulfillment.shippingAddress}
+              </p>
+            </div>
+            <dl className="space-y-2">
+              <DetailRow
+                label="Shipping method"
+                value={humanizeValue(order.fulfillment.shippingMethod)}
+              />
+              {order.paymentMode && (
+                <DetailRow
+                  label="Payment mode"
+                  value={humanizeValue(order.paymentMode)}
+                />
+              )}
+            </dl>
+          </div>
+        )}
 
         <details className="mt-5 rounded-md bg-slate-50 p-3 text-sm text-slate-600">
           <summary className="cursor-pointer font-medium text-slate-700">
@@ -247,6 +283,13 @@ function DetailRow({ label, value }: { label: string; value: string }) {
       <dd className="mt-0.5 text-slate-700">{value}</dd>
     </div>
   );
+}
+
+function humanizeValue(value: string): string {
+  return value
+    .split("_")
+    .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
+    .join(" ");
 }
 
 function StatusBadge({ status }: { status: OrderStatus }) {

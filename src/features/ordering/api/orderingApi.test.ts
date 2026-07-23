@@ -29,7 +29,15 @@ describe("orderingApi", () => {
 
     await placeOrder(
       "access-token-1",
-      { cartId: "cart-1", cartVersion: 4 },
+      {
+        cartId: "cart-1",
+        cartVersion: 4,
+        recipientName: "Nguyen Van A",
+        recipientPhone: "0901234567",
+        shippingAddress: "123 Nguyen Hue, District 1",
+        shippingMethod: "STANDARD",
+        paymentMode: "MOCK",
+      },
       "11111111-1111-4111-8111-111111111111",
     );
 
@@ -41,6 +49,11 @@ describe("orderingApi", () => {
     expect(JSON.parse(init.body as string)).toEqual({
       cartId: "cart-1",
       cartVersion: 4,
+      recipientName: "Nguyen Van A",
+      recipientPhone: "0901234567",
+      shippingAddress: "123 Nguyen Hue, District 1",
+      shippingMethod: "STANDARD",
+      paymentMode: "MOCK",
     });
     expect(headers.get("Authorization")).toBe("Bearer access-token-1");
     expect(headers.get("Idempotency-Key")).toBe(
