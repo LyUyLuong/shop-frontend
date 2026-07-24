@@ -1,5 +1,16 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useParams,
+} from "react-router-dom";
 import { isApiError } from "../../../shared/api/apiError";
 import { formatVnd, shortId } from "../../../shared/utils/format";
 import {
@@ -37,8 +48,15 @@ const initialForm: FormState = {
 
 export function AdminProductFormPage() {
   const { productId } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const isEditMode = Boolean(productId);
+  const imageUploadFailed =
+    (
+      location.state as {
+        imageUploadFailed?: boolean;
+      } | null
+    )?.imageUploadFailed === true;
 
   const productQuery = useAdminProduct(productId);
   const createProduct = useCreateProduct();
@@ -58,6 +76,13 @@ export function AdminProductFormPage() {
   }, [selectedFilePreviewUrl]);
 
   const mutationError = createProduct.error ?? updateProduct.error ?? uploadImage.error;
+
+  function clearSelectedImage() {
+    setSelectedImage(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
 
   async function saveProduct(request: UpsertProductRequest) {
     if (isEditMode && productId) {
@@ -79,7 +104,27 @@ export function AdminProductFormPage() {
     }
 
     const product = await createProduct.mutateAsync(request);
-    navigate(`/admin/products/${product.id}`);
+    const imageFile = selectedImage?.file;
+
+    if (!imageFile) {
+      navigate(`/admin/products/${product.id}`);
+      return;
+    }
+
+    try {
+      await uploadImage.mutateAsync({
+        productId: product.id,
+        file: imageFile,
+      });
+      clearSelectedImage();
+      navigate(`/admin/products/${product.id}`);
+    } catch {
+      navigate(`/admin/products/${product.id}`, {
+        state: {
+          imageUploadFailed: true,
+        },
+      });
+    }
   }
 
   function selectImage(file: File | null) {
@@ -104,9 +149,12 @@ export function AdminProductFormPage() {
         file: selectedImage.file,
       });
 
-      setSelectedImage(null);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
+      clearSelectedImage();
+      if (imageUploadFailed) {
+        navigate(location.pathname, {
+          replace: true,
+          state: null,
+        });
       }
     } catch {
       return;
@@ -131,8 +179,11 @@ export function AdminProductFormPage() {
 
   const product = productQuery.data;
   const imageSrc = product ? productImageSrc(product) : undefined;
-  const isSaving = createProduct.isPending || updateProduct.isPending;
   const isUploading = uploadImage.isPending;
+  const isSaving =
+    createProduct.isPending ||
+    updateProduct.isPending ||
+    (!isEditMode && isUploading);
 
   return (
     <section className="space-y-5">
@@ -173,61 +224,76 @@ export function AdminProductFormPage() {
           </div>
         )}
 
+        {imageUploadFailed && (
+          <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            The product was created, but its image was not uploaded. Select the
+            image again to retry.
+          </div>
+        )}
+
         <ProductDetailsForm
           key={product?.id ?? "new-product"}
           initialValue={product ? toFormState(product) : initialForm}
           isEditMode={isEditMode}
           isSaving={isSaving}
           onSubmit={saveProduct}
-        />
+        >
+          <div className="border-t border-slate-200 pt-5">
+            <h2 className="text-lg font-semibold text-slate-950">Product image</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              JPEG, PNG, or WebP. Existing orders keep their own image snapshot
+              after checkout.
+            </p>
+
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              {product && (
+                <ImagePreview
+                  label="Current image"
+                  imageSrc={imageSrc}
+                  alt={product.name}
+                />
+              )}
+              <ImagePreview
+                label="Selected image preview"
+                imageSrc={selectedFilePreviewUrl ?? undefined}
+                alt="Selected product image preview"
+                helper={
+                  selectedImage
+                    ? `${selectedImage.file.name} - ${formatFileSize(selectedImage.file.size)}`
+                    : undefined
+                }
+              />
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-end gap-3">
+              <label className="block text-sm font-medium text-slate-700">
+                Image file
+                <input
+                  ref={fileInputRef}
+                  accept="image/jpeg,image/png,image/webp"
+                  className="mt-1 block text-sm"
+                  type="file"
+                  disabled={isSaving || isUploading}
+                  onChange={(event) =>
+                    selectImage(event.target.files?.[0] ?? null)
+                  }
+                />
+              </label>
+
+              {isEditMode && productId && (
+                <button
+                  className="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:bg-slate-300"
+                  type="button"
+                  disabled={!selectedImage || isUploading}
+                  onClick={handleUploadImage}
+                >
+                  {isUploading ? "Uploading..." : "Upload image"}
+                </button>
+              )}
+            </div>
+          </div>
+        </ProductDetailsForm>
       </div>
-
-      {isEditMode && productId && (
-        <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-950">Product image</h2>
-          <p className="mt-1 text-sm text-slate-600">
-            Upload a clear product image. Existing orders keep their own order
-            item image snapshot after checkout.
-          </p>
-
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <ImagePreview
-              label="Current image"
-              imageSrc={imageSrc}
-              alt={product?.name ?? "Product image"}
-            />
-            <ImagePreview
-              label="Selected image preview"
-              imageSrc={selectedFilePreviewUrl ?? undefined}
-              alt="Selected product image preview"
-              helper={
-                selectedImage
-                  ? `${selectedImage.file.name} - ${formatFileSize(selectedImage.file.size)}`
-                  : undefined
-              }
-            />
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <input
-              ref={fileInputRef}
-              accept="image/jpeg,image/png,image/webp"
-              className="text-sm"
-              type="file"
-              onChange={(event) => selectImage(event.target.files?.[0] ?? null)}
-            />
-
-            <button
-              className="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:bg-slate-300"
-              type="button"
-              disabled={!selectedImage || isUploading}
-              onClick={handleUploadImage}
-            >
-              {isUploading ? "Uploading..." : "Upload image"}
-            </button>
-          </div>
-        </div>
-      )}
     </section>
   );
 }
@@ -237,9 +303,11 @@ type ProductDetailsFormProps = {
   isEditMode: boolean;
   isSaving: boolean;
   onSubmit: (request: UpsertProductRequest) => Promise<void>;
+  children: ReactNode;
 };
 
 function ProductDetailsForm({
+  children,
   initialValue,
   isEditMode,
   isSaving,
@@ -334,6 +402,8 @@ function ProductDetailsForm({
           />
         </label>
       </div>
+
+      {children}
 
       <button
         className="w-fit rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:bg-slate-300"
